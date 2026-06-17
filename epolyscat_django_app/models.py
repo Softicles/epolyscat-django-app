@@ -142,7 +142,7 @@ class View(models.Model):
             return None
         else:
             return tutorial_views[0]
-'''
+
     class Meta:
         unique_together = ["name", "owner"]
 
@@ -166,7 +166,7 @@ class View(models.Model):
             )
         if not View.objects.filter(owner=owner, type="default").exists():
             View.objects.create(type="default", name="Selected", owner=owner, order=10)
-'''
+
 
 class Run(models.Model):
     name = models.CharField(max_length=100)
