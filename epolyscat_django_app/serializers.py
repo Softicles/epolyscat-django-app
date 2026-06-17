@@ -126,16 +126,35 @@ class RunSerializer(serializers.ModelSerializer):
                 new_project
             )
 
-        # print(projects, [p for p in projects if p.projectID.startswith("Default_Project")])
-        # default_project = next(p for p in projects if p.projectID.startswith("Default_Project"))
-
-        # airavata_project_id = default_project.projectID
+        # Group the run under an Experiment so it is organized and listable.
+        # Honor an explicit experiment id from the client if provided, otherwise
+        # fall back to a per-user default experiment. The experiment's Airavata
+        # project is created lazily on first submit (see _create_remote_execution).
+        experiment = self._resolve_experiment(request)
 
         return models.Run.objects.create(
             **validated_data,
+            experiment=experiment,
             airavata_project_id=airavata_project_id,
             directory=""
         )
+
+    def _resolve_experiment(self, request):
+        "Resolve the Experiment a new run belongs to (explicit id or per-user default)."
+        explicit_id = request.data.get("experiment") or request.data.get("experimentId")
+        if explicit_id:
+            try:
+                return models.Experiment.objects.get(
+                    pk=explicit_id, owner=request.user, deleted=False
+                )
+            except (models.Experiment.DoesNotExist, ValueError, TypeError):
+                pass
+        experiment, _ = models.Experiment.objects.get_or_create(
+            name="ePolyScat Runs",
+            owner=request.user,
+            defaults={"description": "Default experiment for ePolyScat runs"},
+        )
+        return experiment
 
         '''
         root = get_valid_filename(validated_data.pop("root"))

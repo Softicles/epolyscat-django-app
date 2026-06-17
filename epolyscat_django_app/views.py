@@ -178,9 +178,11 @@ class RunViewSet(viewsets.ModelViewSet):
               _queryset = _queryset.filter(
               Q(views=self.request.query_params.get("viewId"))
             )
-        # Exclude tutorials from the general listing unless we're listing tutorials
+        # Exclude tutorials from the general listing unless we're listing tutorials.
+        # Tutorial runs are those attached to a tutorial-type View; the user's own
+        # runs must be kept even when not yet grouped under an experiment.
         if self.action == "list" and not show_tutorial_runs:
-            _queryset = _queryset.exclude(experiment__owner=None)
+            _queryset = _queryset.exclude(views__type="tutorial").distinct()
 
         return _queryset
 
