@@ -65,8 +65,8 @@
             </template>
           </b-breadcrumb>
         </dev -->
-          <div class="w-100 d-flex">
-            <div style="flex: 1;" class="overflow-auto">
+          <div class="w-100 d-flex flex-column" style="width: 93%;">
+            <div style="flex: 1;" class="overflow-auto" v-if="!!experiment || !!view">
               <div class="d-inline mr-2">
                 <div class="overflow-auto" style="font-weight: 400; font-size: 19px;">
                   <template v-if="!!experiment">{{ experiment.name }}</template>
@@ -87,14 +87,21 @@
                  </div>
             </div>
 
-              <LoadingOverlay :name="loadingOverlayName" class="d-flex w-100" style="height: calc(100% - 145px)">
+              <b-input-group class="filter-input my-3">
+                <b-form-input v-model="filterText" type="search" placeholder="Filter runs"/>
+                <b-input-group-append is-text>
+                  <b-icon icon="search"/>
+                </b-input-group-append>
+              </b-input-group>
+
+              <LoadingOverlay :name="loadingOverlayName" class="d-flex w-100" style="flex-grow: 1; min-height: 300px;">
                     <ListView
-                        :items="runs" :columns="[['name', 'Name'], ['status', 'Status'], ['updated', 'Last Modified'], ['actions', 'Actions']]"
+                        :items="runs" :columns="[['name', 'Run Name'], ['status', 'Status'], ['resource', 'Resource'], ['actions', 'Actions']]"
                         :canSelectMultiple="true" @updateSelected="updateSelected" identifier="id"
                         :sorters="[
                             (run1, run2) => run1.name.localeCompare(run2.name),
                             (run1, run2) => sortStatus(run1.displayStatus, run2.displayStatus),
-                            (run1, run2) => (new Date(run2.updated)).getTime() - (new Date(run1.updated)).getTime(),
+                            (run1, run2) => (run1.resource || '').localeCompare(run2.resource || ''),
                         ]"
                     >
                         <template v-slot:name="{ item }">
@@ -107,31 +114,45 @@
                         <template v-slot:status="{ item }">
                             <Badge :status="item.displayStatus"/>
                         </template>
-                        <template v-slot:updated="{ item }">
-                            {{ (new Date(item.updated)).toLocaleString() }}
+                        <template v-slot:resource="{ item }">
+                            {{ item.resource || "—" }}
                         </template>
                         <template v-slot:actions="{ item }">
-                            <b-button
-                                v-if="!isTutorials && view != null" variant="link" size="sm" @click="removeFromView([item])"
-                                v-b-tooltip.hover title="Remove from view"
-                            ><b-icon icon="x" /></b-button>
-                            <b-button
-                                variant="link" size="sm" @click="cloneRun(item)"
-                                v-b-tooltip.hover title="Clone"
-                            ><b-icon icon="clipboard" /></b-button>
-                            <b-button
-                                v-if="!isTutorials && item.displayStatus.toUpperCase() == 'UNSUBMITTED'" variant="link" size="sm"
-                                @click="submitRun(item)" v-b-tooltip.hover title="Submit"
-                            ><b-icon icon="arrow-bar-up"/></b-button>
-                            <b-button
-                                v-else-if="!isTutorials" :disabled="['COMPLETED', 'FAILED'].indexOf(item.status.toUpperCase()) == -1" variant="link"
-                                size="sm" @click="resubmitRun(item)"
-                                v-b-tooltip.hover title="Resubmit"
-                            ><b-icon icon="arrow90deg-right"/></b-button>
-                            <b-button v-if="!isTutorials"
-                                variant="link" size="sm" @click="deleteRuns([item])"
-                                v-b-tooltip.hover title="Delete"
-                            ><b-icon icon="trash" /></b-button>
+                            <!-- All Runs view: clone + delete only, matching the design -->
+                            <template v-if="view == null && !isTutorials">
+                                <b-button
+                                    variant="link" size="sm" class="action-icon" @click="cloneRun(item)"
+                                    v-b-tooltip.hover title="Clone"
+                                ><b-icon icon="files" /></b-button>
+                                <b-button
+                                    variant="link" size="sm" class="action-icon" @click="deleteRuns([item])"
+                                    v-b-tooltip.hover title="Delete"
+                                ><b-icon icon="trash-fill" /></b-button>
+                            </template>
+                            <!-- View / tutorial contexts: full action set -->
+                            <template v-else>
+                                <b-button
+                                    v-if="view != null" variant="link" size="sm" @click="removeFromView([item])"
+                                    v-b-tooltip.hover title="Remove from view"
+                                ><b-icon icon="x" /></b-button>
+                                <b-button
+                                    variant="link" size="sm" @click="cloneRun(item)"
+                                    v-b-tooltip.hover title="Clone"
+                                ><b-icon icon="files" /></b-button>
+                                <b-button
+                                    v-if="!isTutorials && item.displayStatus.toUpperCase() == 'UNSUBMITTED'" variant="link" size="sm"
+                                    @click="submitRun(item)" v-b-tooltip.hover title="Submit"
+                                ><b-icon icon="arrow-bar-up"/></b-button>
+                                <b-button
+                                    v-else-if="!isTutorials" :disabled="['COMPLETED', 'FAILED'].indexOf(item.status.toUpperCase()) == -1" variant="link"
+                                    size="sm" @click="resubmitRun(item)"
+                                    v-b-tooltip.hover title="Resubmit"
+                                ><b-icon icon="arrow90deg-right"/></b-button>
+                                <b-button v-if="!isTutorials"
+                                    variant="link" size="sm" @click="deleteRuns([item])"
+                                    v-b-tooltip.hover title="Delete"
+                                ><b-icon icon="trash-fill" /></b-button>
+                            </template>
                         </template>
                     </ListView>
               </LoadingOverlay>
@@ -396,6 +417,9 @@ export default {
 */
   },
   methods: {
+    updateSelected(selectedRuns) {
+      this.selected = selectedRuns;
+    },
     runLink({runId}) {
       let _link = "/runs/";
       if (runId) {
@@ -650,8 +674,7 @@ export default {
             }
   },
   mounted() {
-      if (this.viewId != null)
-                this.refreshData(true);
+      this.refreshData(true);
 
       this.refreshDataInterval = setInterval(() => {
                 this.refreshData(false);
@@ -669,6 +692,30 @@ export default {
         margin-bottom: 20px;
         margin-top: -5px;
         width: 93%;
+    }
+
+    /* "Filter runs" search box */
+    .filter-input >>> .form-control {
+        border-right: 0;
+        height: 44px;
+        font-size: 16px;
+    }
+
+    .filter-input >>> .input-group-text {
+        background: #fff;
+        border-left: 0;
+        color: #6c757d;
+    }
+
+    /* Clone / delete icons in the Actions column */
+    .action-icon {
+        color: #1b3a5c;
+        font-size: 1.1rem;
+        padding: 0.1rem 0.5rem;
+    }
+
+    .action-icon:hover {
+        color: #102537;
     }
 
     .button_row > * {
