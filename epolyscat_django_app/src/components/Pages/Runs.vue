@@ -96,7 +96,7 @@
 
               <LoadingOverlay :name="loadingOverlayName" class="d-flex w-100" style="flex-grow: 1; min-height: 300px;">
                     <ListView
-                        :items="runs" :columns="[['name', 'Run Name'], ['status', 'Status'], ['resource', 'Resource'], ['actions', 'Actions']]"
+                        :items="runs" :columns="[['name', 'Run Name'], ['status', 'Status'], ['resource', 'Resource'], ['experimentId', 'Experiment'], ['actions', 'Actions']]"
                         :canSelectMultiple="true" @updateSelected="updateSelected" identifier="id"
                         :sorters="[
                             (run1, run2) => run1.name.localeCompare(run2.name),
@@ -116,6 +116,9 @@
                         </template>
                         <template v-slot:resource="{ item }">
                             {{ item.resource || "—" }}
+                        </template>
+                        <template v-slot:experimentId="{ item }">
+                            {{ item.experimentId || "—" }}
                         </template>
                         <template v-slot:actions="{ item }">
                             <!-- All Runs view: clone + delete only, matching the design -->

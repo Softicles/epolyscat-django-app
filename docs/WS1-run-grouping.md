@@ -124,3 +124,17 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
   renders, mounts, fetches, and lists experiments; the Create-Experiment flow
   dispatch works. (The `experimentsPagination` null-guard above was also needed
   for a clean first render.)
+
+## UI — Experiment column in the Runs table (`Runs.vue`, `serializers.py`)
+- **Situation:** The Runs table showed Run Name / Status / Resource / Actions with
+  no indication of which experiment a run belongs to, and the run API did not
+  expose the experiment.
+- **Task:** Show each run's experiment in the Runs table, between the Resource and
+  Actions columns.
+- **Action:** Added `"experiment"` to `RunSerializer.fields` (the run encode
+  already maps `experimentId ← obj.experiment`); inserted an
+  `['experimentId', 'Experiment']` column and a matching cell slot between the
+  Resource and Actions columns in `Runs.vue`. Rebuilt the bundle.
+- **Result:** The Runs table shows an "Experiment" column (the experiment id, or
+  "—" when ungrouped) between Resource and Actions. Verified the API returns
+  `experiment` (runs under exp 2 report `experiment: 2`).

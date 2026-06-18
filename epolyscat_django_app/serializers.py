@@ -83,6 +83,7 @@ class RunSerializer(serializers.ModelSerializer):
             "group_resource_profile_id", "compute_resource_id",
             "queue_name", "core_count", "node_count", "walltime_limit", "total_physical_memory",
             "inputs", "executions", "status", "job_status", "is_tutorial", "job_id", "resource",
+            "experiment",
             #"directedit", "inpc_download_url", "cancelable","can_resubmit", "input_table", "root",
             #"number", "root", "experiment", "resource", #"resource_short", "job_id", 
         )
