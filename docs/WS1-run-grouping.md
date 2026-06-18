@@ -156,3 +156,16 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
   (`Run.vue` already threads `experimentId` into create).
 - **Result:** `/runs/?experimentId=<id>` shows only that experiment's runs, and
   New Run from an experiment view creates a run grouped under that experiment.
+
+## Fix — show all runs (submitted + unsubmitted) in each experiment view (`epolyscat-service.js`)
+- **Situation:** `RunService.fetchRuns` (the active store fetch) called
+  `GET /runs/`, which is paginated (page_size 10). With more than 10 runs only the
+  first 10 reached the store, so an experiment view — which client-filters the
+  store by `experimentId` — showed only whatever subset of those 10 matched,
+  missing runs regardless of submitted/unsubmitted status.
+- **Task:** Make every run available so each experiment view lists all of its
+  runs.
+- **Action:** `fetchRuns` now requests `?page_size=10000`, loading all of the
+  user's runs into the store.
+- **Result:** All runs are loaded (verified 14 of 14 returned vs 10 by default);
+  each experiment view shows all its runs — both submitted and unsubmitted.

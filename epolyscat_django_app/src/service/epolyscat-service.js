@@ -802,7 +802,9 @@ export const RunService = {
         return data;
     },
     async fetchRuns() {
-        const {data} = await axiosInstance.get(appBaseUrl + 'runs/');
+        // Fetch all of the user's runs (not just the default first page) so the
+        // Runs/experiment views show every run, both submitted and unsubmitted.
+        const {data} = await axiosInstance.get(appBaseUrl + 'runs/?page_size=10000');
 
         data.results = data.results.map(this.encodeObj);
         return data;
