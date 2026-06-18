@@ -432,7 +432,7 @@ class RunViewSet(viewsets.ModelViewSet):
             raise Exception("You can only submit a run that you own")
 
         # change to api call
-        app_interface_id = self._get_eployscat_app_interface_id(request)
+        app_interface_id = self._get_eployscat_app_interface_id(request, run)
 
         inputs = {};
 
@@ -494,7 +494,7 @@ class RunViewSet(viewsets.ModelViewSet):
                 f"Cannot resubmit run {run.id}, has no executions with a job"
             )
 
-        app_interface_id = self._get_eployscat_app_interface_id(request)
+        app_interface_id = self._get_eployscat_app_interface_id(request, run)
 
         # prepare inputs to remote execution and call self._create_remote_execution
         inpc_file = user_storage.open_file(
@@ -626,10 +626,32 @@ class RunViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-    def _get_eployscat_app_interface_id(self, request):
-        app_module_id = getattr(settings, "EPOLYSCAT", {}).get(
-            "EPOLYSCAT_APPLICATION_ID", "ePolyScat_940ab1c9-4ceb-431c-8595-c6246a195442"
+    def _resolve_application_module_id(self, run):
+        """Resolve the Airavata application module id for a run from its selected
+        Module/Utility/Workflow input. The selected member name is mapped to a
+        module id via settings.EPOLYSCAT["APPLICATION_IDS"], falling back to the
+        core ePolyScat module (EPOLYSCAT_APPLICATION_ID)."""
+        epolyscat = getattr(settings, "EPOLYSCAT", {})
+        default_id = epolyscat.get(
+            "EPOLYSCAT_APPLICATION_ID",
+            "ePolyScat_940ab1c9-4ceb-431c-8595-c6246a195442",
         )
+        if run is None:
+            return default_id
+        app_ids = epolyscat.get("APPLICATION_IDS", {})
+        collections = (
+            apps.get_app_config("epolyscat_django_app")
+            .APPLICATION_SETTINGS["EPOLYSCAT_DJANGO_APP"]
+            .get("COLLECTIONS", {})
+        )
+        for collection in collections.values():
+            inp = run.inputs.filter(name=collection["input_name"]).first()
+            if inp and inp.value:
+                return app_ids.get(inp.value, default_id)
+        return default_id
+
+    def _get_eployscat_app_interface_id(self, request, run=None):
+        app_module_id = self._resolve_application_module_id(run)
         all_app_interfaces = request.airavata_client.getAllApplicationInterfaces(
             request.authz_token, settings.GATEWAY_ID
         )
@@ -1114,7 +1136,19 @@ def api_settings(request):
         #"BSR3_82b15174-04a1-471e-82a3-33c77c8c6281"
         "ePolyScat_940ab1c9-4ceb-431c-8595-c6246a195442"
     )
-    return response.Response({"EPOLYSCAT": {"EPOLYSCAT_APPLICATION_ID": app_module_id}})
+    collections = (
+        apps.get_app_config("epolyscat_django_app")
+        .APPLICATION_SETTINGS["EPOLYSCAT_DJANGO_APP"]
+        .get("COLLECTIONS", {})
+    )
+    return response.Response(
+        {
+            "EPOLYSCAT": {
+                "EPOLYSCAT_APPLICATION_ID": app_module_id,
+                "COLLECTIONS": collections,
+            }
+        }
+    )
 
 
 def get_run_output_data_product_uri(request, run: models.Run, data_type: str):

@@ -243,6 +243,27 @@ class epolyscatDjangoAppConfig(AppConfig):
             "FILE_INPUT": {
                 "inpc": "literal copy of input file",
             },
+            # Declarative catalog of the Create-Run collection types. Each member
+            # name maps to an Airavata application module id via
+            # settings.EPOLYSCAT["APPLICATION_IDS"] (falling back to
+            # EPOLYSCAT_APPLICATION_ID) for interface routing on submit.
+            "COLLECTIONS": {
+                "Modules": {
+                    "input_name": "EPOLYSCAT_Application_Module",
+                    "members": ["Gaussian16", "ePolyScat", "OpenMolcas"],
+                },
+                "Utilities": {
+                    "input_name": "Application_Utility",
+                    "members": [
+                        "CnvMath", "CnvMatLab", "CnvLinFull",
+                        "MoldenMerge", "NRFPAD", "Cube2igor",
+                    ],
+                },
+                "Workflows": {
+                    "input_name": "Application_Workflow",
+                    "members": ["Data_Gen", "ePolyScat_Run", "Analysis"],
+                },
+            },
         }
     }
 
