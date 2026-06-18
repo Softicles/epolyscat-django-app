@@ -131,10 +131,12 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
   expose the experiment.
 - **Task:** Show each run's experiment in the Runs table, between the Resource and
   Actions columns.
-- **Action:** Added `"experiment"` to `RunSerializer.fields` (the run encode
-  already maps `experimentId ← obj.experiment`); inserted an
-  `['experimentId', 'Experiment']` column and a matching cell slot between the
+- **Action:** Exposed the experiment on the run API — `"experiment"` (id) plus an
+  `experiment_name` SerializerMethodField (`instance.experiment.name`, null-safe) —
+  in `RunSerializer`; the run encode maps `experimentName ← obj.experiment_name`.
+  Inserted an `['experimentName', 'Experiment']` column and cell slot between the
   Resource and Actions columns in `Runs.vue`. Rebuilt the bundle.
-- **Result:** The Runs table shows an "Experiment" column (the experiment id, or
-  "—" when ungrouped) between Resource and Actions. Verified the API returns
-  `experiment` (runs under exp 2 report `experiment: 2`).
+- **Result:** The Runs table shows an "Experiment" column with the experiment
+  **name** (or "—" when ungrouped) between Resource and Actions. Verified the API
+  returns `experiment_name` (runs under exp 2 report
+  `experiment_name: "N2 photoionization study"`).

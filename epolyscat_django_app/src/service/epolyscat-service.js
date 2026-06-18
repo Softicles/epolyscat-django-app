@@ -735,6 +735,7 @@ export const RunService = {
             number: obj.number,
             root: obj.root,
             experimentId: obj.experiment,
+            experimentName: obj.experiment_name,
             created: new Date(obj.created).toLocaleString(),
             updated: new Date(obj.updated).toLocaleString(),
             //created: obj.created,

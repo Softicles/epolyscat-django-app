@@ -67,6 +67,7 @@ class RunSerializer(serializers.ModelSerializer):
     is_tutorial = serializers.SerializerMethodField()
     job_id = serializers.SerializerMethodField()
     resource = serializers.SerializerMethodField()
+    experiment_name = serializers.SerializerMethodField()
     #resource_short = serializers.SerializerMethodField()
     #executions = serializers.SlugRelatedField(
     #    slug_field="airavata_experiment_id", read_only=True, many=True
@@ -83,7 +84,7 @@ class RunSerializer(serializers.ModelSerializer):
             "group_resource_profile_id", "compute_resource_id",
             "queue_name", "core_count", "node_count", "walltime_limit", "total_physical_memory",
             "inputs", "executions", "status", "job_status", "is_tutorial", "job_id", "resource",
-            "experiment",
+            "experiment", "experiment_name",
             #"directedit", "inpc_download_url", "cancelable","can_resubmit", "input_table", "root",
             #"number", "root", "experiment", "resource", #"resource_short", "job_id", 
         )
@@ -411,6 +412,9 @@ class RunSerializer(serializers.ModelSerializer):
             return latest_execution.get_job_id(request)
 
 
+
+    def get_experiment_name(self, instance):
+        return instance.experiment.name if instance.experiment else None
 
     def get_resource(self, instance):
         request = self.context["request"]
