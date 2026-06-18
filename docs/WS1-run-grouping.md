@@ -108,3 +108,19 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
 - **Action:** Made the `experimentsPagination` computed return `{total: 0}` when
   the getter returns null.
 - **Result:** The page renders, mounts, fetches, and lists experiments.
+
+## Fix — Experiment Vuex module not registered (`store/index.js`) — root cause
+- **Situation:** Opening `/experiments` threw
+  `this.$store.getters['experiment/getExperiments'] is not a function` and fired
+  **no** REST request. The experiment store module was **commented out** in the
+  store registration, so the entire `experiment/*` namespace
+  (`getExperiments`/`fetchExperiments`/`createExperiment`) did not exist. The page
+  crashed during render, before `mounted()` could fetch.
+- **Task:** Register the experiment module so its getters/actions resolve.
+- **Action:** Added `"experiment": experimentStore` to the store `modules` (it was
+  imported but only present as a commented-out entry); removed the stale commented
+  lines.
+- **Result:** `experiment/*` getters and actions resolve; the Experiments page
+  renders, mounts, fetches, and lists experiments; the Create-Experiment flow
+  dispatch works. (The `experimentsPagination` null-guard above was also needed
+  for a clean first render.)
