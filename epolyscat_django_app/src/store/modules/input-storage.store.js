@@ -137,6 +137,11 @@ const mutations = {
         // console.log("adding input file:", file);
         const inputFile = state.inputFiles[inputFileName];
 
+        // Ignore files that don't map to a known input slot (e.g. a run whose
+        // inputs/outputs don't match the current input model) instead of crashing
+        // the run detail page.
+        if (!inputFile) return;
+
         const indexToBeReplaced = inputFile.files
             .findIndex(other_file => other_file.name == file.name);
 

@@ -169,3 +169,15 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
   user's runs into the store.
 - **Result:** All runs are loaded (verified 14 of 14 returned vs 10 by default);
   each experiment view shows all its runs — both submitted and unsubmitted.
+
+## Fix — run detail crashed on inputs not in the input model (`input-storage.store.js`)
+- **Situation:** Opening a run (e.g. run 13) threw "Error while trying to fetch
+  run with id: 13". The `ADD_TO_INPUT_FILE` mutation did
+  `state.inputFiles[inputFileName].files` where `inputFileName` was not a known
+  key → `TypeError`, aborting the run-detail load. Triggered by runs whose
+  inputs/outputs don't map to the frontend's current input model.
+- **Task:** Don't crash the run page on a file that maps to no known input slot.
+- **Action:** Guard `ADD_TO_INPUT_FILE` to return early when
+  `state.inputFiles[inputFileName]` is undefined.
+- **Result:** The run detail page loads even when a run's inputs/outputs don't
+  match the input model; the unrecognized file is simply skipped.
