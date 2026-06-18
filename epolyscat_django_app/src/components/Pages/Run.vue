@@ -342,7 +342,8 @@ export default {
                 ["EPOLYSCAT_Application_Module", "Application_Utility", "Application_Workflow"].indexOf(input.name) != -1
     );
 
-            return `${type1.value} > ${type2.value}`;
+            if (!type1 && !type2) return "-----";
+            return `${type1 ? type1.value : "—"} > ${type2 ? type2.value : "—"}`;
     },
     parameters() {
             return this.$store.getters["input/getInputs"]().parameters;

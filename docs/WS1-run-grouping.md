@@ -181,3 +181,13 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
   `state.inputFiles[inputFileName]` is undefined.
 - **Result:** The run detail page loads even when a run's inputs/outputs don't
   match the input model; the unrecognized file is simply skipped.
+
+## Fix — runType crashed on runs missing Calculation_Type (`Run.vue`)
+- **Situation:** Opening a run whose inputs lack a `Calculation_Type` entry (e.g.
+  API-created runs) threw `can't access property "value", e is undefined` —
+  `runType` did `type1.value`/`type2.value` where `type1` (the `Calculation_Type`
+  input) was `undefined`.
+- **Task:** Don't crash the run page when one of the type inputs is absent.
+- **Action:** Guard `runType` to return `-----` when neither type input is
+  present, and substitute `—` for whichever part is missing.
+- **Result:** The run detail page loads for runs missing `Calculation_Type`.
