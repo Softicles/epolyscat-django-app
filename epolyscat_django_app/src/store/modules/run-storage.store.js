@@ -238,13 +238,13 @@ const actions = {
         return run;
     },
     async createRun({dispatch, commit, rootGetters}, {
-        name, groupResourceProfileId, computeResourceId, coreCount,
+        name, experimentId, groupResourceProfileId, computeResourceId, coreCount,
         totalPhysicalMemory, nodeCount, wallTimeLimit, queueName, viewIds, description
     }) {
         const inputs = await rootGetters["input/getPreparedInputs"]({ prepareForCreation: true });
 
         const data = await RunService.createRun({
-            name, inputs, groupResourceProfileId, computeResourceId,
+            name, inputs, experimentId, groupResourceProfileId, computeResourceId,
             coreCount, nodeCount, wallTimeLimit, queueName, totalPhysicalMemory, viewIds, description
         }, false);
 

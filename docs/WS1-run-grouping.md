@@ -82,3 +82,18 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
   (→ `/runs`) and "Experiments" (→ `/experiments`); rebuilt the frontend bundle.
 - **Result:** Expanding "Views" shows Runs and Experiments; the Experiments page
   is now reachable from the sidebar.
+
+## UI wiring — group runs under the selected experiment (`Run.vue`, `run-storage.store.js`, `epolyscat-service.js`)
+- **Situation:** The backend reads `experimentId` on run create, and the UI
+  navigates to `/runs/?experimentId=<id>` after an experiment is created, but the
+  run-create chain (`Run.vue` → store `run/createRun` → `RunService.createRun`)
+  never forwarded `experimentId` — so UI-created runs always fell into the default
+  "ePolyScat Runs" experiment regardless of context. (Also why the Experiments
+  page looked empty: experiment creation itself was broken, so none existed.)
+- **Task:** Thread `experimentId` from the route through to the create request.
+- **Action:** `RunService.createRun` now sends `experimentId`; the store
+  `run/createRun` action forwards it; `Run.vue` `saveRun` passes
+  `this.experimentId` (from `$route.query`). Rebuilt the bundle.
+- **Result:** Creating a run while viewing an experiment groups it under that
+  experiment (verified: runs under exp 2 = "N2 run A", "N2 run B"). With the
+  create fix above, the Experiments page now lists experiments.

@@ -517,7 +517,7 @@ export default {
             if (this.runViewType == "creating") {
                 try {
                     this.run = await this.$store.dispatch("run/createRun", {
-                        ...this.run, viewIds: this.viewIds
+                        ...this.run, viewIds: this.viewIds, experimentId: this.experimentId
                     });
 
                     if (!this.userLeftPage && setURL) router.push(`/runs/${this.run.id}`)
