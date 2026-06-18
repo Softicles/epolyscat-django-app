@@ -87,7 +87,7 @@ export default {
                 { key: "WORKFLOW" },
             ]];
 
-            if (path.length >= 1)
+            if (path.length >= 1 && pathLabels[1])
                 buttonsList[1] = pathLabels[1].map(key => ({ key }));
 
             if (path.length >= 2) {

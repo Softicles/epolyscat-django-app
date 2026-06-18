@@ -78,3 +78,16 @@ fallback until those apps are deployed and added to `APPLICATION_IDS`.
   the definition order. Build succeeds.
 - **Note:** This required updating the shared dev-gateway interface (approved).
   Input-builder rendering should be confirmed in the browser.
+
+### Follow-up — PathSelecter robust to async pathLabels (`PathSelecter.vue`)
+- **Situation:** After the fetch became asynchronous (settings + interface network
+  calls), `pathLabels` is empty on first render, and
+  `getButtonsList` did `pathLabels[1].map(...)` → `can't access property "map",
+  pathLabels[1] is undefined`. (Previously the hardcoded array made `pathLabels`
+  effectively immediate.)
+- **Task:** Don't crash the path selector before the interface has loaded.
+- **Action:** Guard the access: `if (path.length >= 1 && pathLabels[1])`. The
+  `getInputs` getter is reactive, so the selector populates once `fetchPathLabels`
+  completes; `selectDefaultPathFrom` settles without looping.
+- **Result:** Create-Run / Run pages render while the interface loads, then the
+  Module/Utility/Workflow path selector fills in.
