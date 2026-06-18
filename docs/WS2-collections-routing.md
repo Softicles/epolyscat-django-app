@@ -51,3 +51,30 @@ expected module id.
 MoldenMerge/NRFPAD and other utilities are catalog members but are not registered
 as Airavata applications on the dev gateway, so selecting them routes to the
 fallback until those apps are deployed and added to `APPLICATION_IDS`.
+
+## Alignment — frontend input model fetched from the registered interface
+- **Situation:** `fetchApplicationInputs()` returned a **hardcoded** interface
+  array (numeric types) that diverged from the registered backend interface, so
+  runs/inputs created against the backend didn't match the frontend's input model
+  (e.g. the `Input-File` vs `ePolyscat_Input_File` name mismatch).
+- **Task:** Drive the frontend input builder from the **registered** ePolyScat
+  interface, with both sides using DataType **name-string** types (no number↔name
+  transform).
+- **Action:**
+  - *Backend (gateway state, not repo):* updated the registered interface
+    `ePolyScat_ced30c67` to carry the full 9-input definition **+ editor
+    `metaData`** (Calculation_Type, Application_Workflow, EPOLYSCAT_Application_Module,
+    Application_Utility, Gaussian_Input, Molcas_Input, ePolyScat_Input_Data,
+    ePolyscat_Input_File, molden.dat).
+  - *Frontend:* `fetchApplicationInputs()` now fetches
+    `/api/applications/<EPOLYSCAT_APPLICATION_ID>/application_interface/` (module
+    id from `/api/settings/`) and sorts by `inputOrder` (the API returns inputs
+    alphabetically). `fetchPathLabels` type checks converted from numbers to
+    DataType name strings (`STRING`/`INTEGER`/`URI`/`URI_COLLECTION`); the synthetic
+    `Parameters` input uses `type: "INTEGER"`.
+- **Result:** The input builder is sourced from the registered interface.
+  Round-trip verified: types are name strings, editor `metaData`
+  (options + `dependencies.show.OR`) survives intact, and `inputOrder` restores
+  the definition order. Build succeeds.
+- **Note:** This required updating the shared dev-gateway interface (approved).
+  Input-builder rendering should be confirmed in the browser.

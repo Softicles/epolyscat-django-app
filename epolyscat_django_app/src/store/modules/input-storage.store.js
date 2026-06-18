@@ -14,7 +14,7 @@ const actions = {
     async fetchPathLabels({commit, state}) {
         let applicationInputs = await InputService.fetchApplicationInputs();
         const parameter_dependencies = applicationInputs
-            .filter(input => !("config" in input.metaData.editor) && input.type <= 1)
+            .filter(input => !("config" in input.metaData.editor) && ["STRING", "INTEGER"].includes(input.type))
             .reduce((dependencies, parameter) => dependencies.concat(parameter.metaData.editor.dependencies.show.OR), []);
 
         let inputFiles = {};
@@ -25,7 +25,7 @@ const actions = {
         // applicationInputs = applicationInputs.filter(input => "config" in input.metaData.editor || input.type > 1);
 
         // Place the parameters input in between the top level options and the actual parameters
-        applicationInputs.splice(10, 0, {name: "Parameters", type: 1, metaData: { editor: { dependencies: { show: { OR: parameter_dependencies } } } } })
+        applicationInputs.splice(10, 0, {name: "Parameters", type: "INTEGER", metaData: { editor: { dependencies: { show: { OR: parameter_dependencies } } } } })
 
         for (let input of applicationInputs) {
             console.log('input-storage.store:31: Current input is', input)
@@ -54,7 +54,7 @@ const actions = {
                 input.metaData.editor.config.options.forEach(({ value }) => 
                     pathLabels[pathLabelsIndex][value] = dependencies
                 );
-            } else if (input.type > 1 || input.name == "Parameters") {
+            } else if (!["STRING", "INTEGER"].includes(input.type) || input.name == "Parameters") {
                 pathLabels[pathLabelsIndex][input.name] = dependencies;
             } else {
                 parameters.push({
@@ -68,12 +68,12 @@ const actions = {
                 });
             }
 
-            if (input.type == 3 || input.type == 4) {
+            if (input.type == "URI" || input.type == "URI_COLLECTION") {
                 if ("userFriendlyDescription" in input && input["userFriendlyDescription"] != null)
                     descriptions[input.name] = input.userFriendlyDescription;
 
                 inputFiles[input.name] = {
-                    isMultiFileInput: input.type == 4,
+                    isMultiFileInput: input.type == "URI_COLLECTION",
                     files: [],
                     isValid: function(_inputFiles) { 
                         return this.files.filter(file => !file.deleted).length > 0 
