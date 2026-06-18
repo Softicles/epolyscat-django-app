@@ -140,3 +140,19 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
   **name** (or "—" when ungrouped) between Resource and Actions. Verified the API
   returns `experiment_name` (runs under exp 2 report
   `experiment_name: "N2 photoionization study"`).
+
+## Fix — experiment filtering + New Run inherits the experiment (`Runs.vue`)
+- **Situation:** `/runs/?experimentId=<id>` showed **all** runs — the
+  `experimentId` computed was commented out, so `this.experimentId` was undefined
+  and nothing filtered. Separately, clicking **New Run** while viewing an
+  experiment's runs went to `/runs/new` without the experiment, so the new run
+  did not belong to it.
+- **Task:** Filter the runs list by the route's `experimentId`, and have New Run
+  carry the experiment into creation.
+- **Action:** Defined the `experimentId()` (from `$route.query`) and
+  `experiment()` computeds; filter `runs()` client-side by `experimentId` (each
+  run carries `experimentId` from the API, robust to the store holding all runs);
+  made `newRunLink` include `?experimentId=<id>` when viewing an experiment
+  (`Run.vue` already threads `experimentId` into create).
+- **Result:** `/runs/?experimentId=<id>` shows only that experiment's runs, and
+  New Run from an experiment view creates a run grouped under that experiment.

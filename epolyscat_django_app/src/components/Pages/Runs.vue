@@ -351,20 +351,21 @@ export default {
                     ("viewId" in this.$route.params) ? this.$route.params.viewId : null;
     },
 
-    //experimentId() {
-    //  return this.$route.query.experimentId
-    //},
-    //viewId() {
-    //  return this.$route.query.viewId
-    //}, 
-    //experiment() {
-    //  return this.$store.getters["experiment/getExperiment"]({experimentId: this.experimentId});
-    //},
+    experimentId() {
+      return this.$route.query.experimentId;
+    },
+    experiment() {
+      return this.$store.getters["experiment/getExperiment"]({experimentId: this.experimentId});
+    },
     //view() {
     //  return this.$store.getters["view/getView"]({viewId: this.viewId});
     //},
     runs() {
          let runs = (this.view == null) ? this.$store.getters["run/getRuns"]() : this.view.runs;
+
+         if (this.experimentId) {
+                    runs = runs.filter(run => String(run.experimentId) === String(this.experimentId));
+         }
 
          return runs.filter(run => run.name.includes(this.filterText)).map(run => {
                     run.isSelectable = !this.isTutorials;
@@ -382,8 +383,10 @@ export default {
 //        });
 //      }
 //    }, 
-    newRunLink() {  
-        return (this.viewId != null) ? `/runs/new?viewId=${this.viewId}` : `/runs/new`;
+    newRunLink() {
+        if (this.viewId != null) return `/runs/new?viewId=${this.viewId}`;
+        if (this.experimentId) return `/runs/new?experimentId=${this.experimentId}`;
+        return `/runs/new`;
     },
     loadingOverlayName() {
                 return (this.viewId == null) ? "runs" : `viewRuns${this.viewId}`
