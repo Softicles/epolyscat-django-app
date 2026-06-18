@@ -114,7 +114,7 @@ export default {
       return this.$store.getters["experiment/getExperiments"]({page: this.page, pageSize: this.pageSize});
     },
     experimentsPagination() {
-      return this.$store.getters["experiment/getExperimentsPagination"]({page: this.page, pageSize: this.pageSize});
+      return this.$store.getters["experiment/getExperimentsPagination"]({page: this.page, pageSize: this.pageSize}) || {total: 0};
     },
     selectedCount() {
       return this.selectedExperimentIds.length;

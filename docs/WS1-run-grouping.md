@@ -97,3 +97,14 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
 - **Result:** Creating a run while viewing an experiment groups it under that
   experiment (verified: runs under exp 2 = "N2 run A", "N2 run B"). With the
   create fix above, the Experiments page now lists experiments.
+
+## Fix — Experiments page blank / no fetch (`Experiments.vue`)
+- **Situation:** Opening `/experiments` showed a blank page and fired **no**
+  `/api/experiments/` request. `experimentsPagination` is `null` until the first
+  fetch, but the template bound `:total-rows="experimentsPagination.total"` —
+  `null.total` threw during the initial render, so the component never mounted and
+  its `mounted()` fetch never ran.
+- **Task:** Let the page render before data loads so `mounted()` can fetch.
+- **Action:** Made the `experimentsPagination` computed return `{total: 0}` when
+  the getter returns null.
+- **Result:** The page renders, mounts, fetches, and lists experiments.
