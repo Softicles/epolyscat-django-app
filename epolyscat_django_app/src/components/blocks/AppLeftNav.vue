@@ -53,19 +53,18 @@
         </div>
         <b-collapse id="show-views" v-model="listViews" accordion="show-more" role="tabpanel">
             <div style="border-left: 1px solid black; margin-left: 40px">
-                <LoadingOverlay name="views" class="d-flex flex-column">
-                    <router-link style="margin-bottom: 0;" v-for="view in views" v-bind:key="view" :to="`/views/${view.id}`" v-slot="{ href, navigate, isExactActive }" class="link">
-                        <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
-                            <span class="ellipses">{{ view.name }}</span>
-                        </b-link>
-                    </router-link>
-                    <div v-if="views.length == 0" style="color: gray; margin: 20px">No Views</div>
-                    <router-link v-else :to="`/views`" v-slot="{ href, navigate, isExactActive }" class="link">
-                        <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
-                            <span style="margin: 0 5px">All Views</span>
-                        </b-link>
-                    </router-link>
-                </LoadingOverlay>
+                <router-link :to="`/runs`" v-slot="{ href, navigate, isExactActive }" class="link">
+                    <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
+                        <b-icon font-scale="1.1" icon="collection"/>
+                        <span style="margin: 0 5px">Runs</span>
+                    </b-link>
+                </router-link>
+                <router-link :to="`/experiments`" v-slot="{ href, navigate, isExactActive }" class="link">
+                    <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
+                        <b-icon font-scale="1.1" icon="diagram3"/>
+                        <span style="margin: 0 5px">Experiments</span>
+                    </b-link>
+                </router-link>
             </div>
         </b-collapse>
         <router-link :to="`/tutorials`" v-slot="{ href, navigate, isExactActive }" class="link">

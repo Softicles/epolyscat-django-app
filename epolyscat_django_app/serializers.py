@@ -509,7 +509,6 @@ class ExperimentSerializer(serializers.ModelSerializer):
         required=True,
         validators=[UniqueToUserValidator(models.Experiment.objects.all(), "owner")],
     )
-    root = serializers.SlugRelatedField(slug_field="root", read_only=True)
 
     class Meta:
         model = models.Experiment
@@ -524,9 +523,8 @@ class ExperimentSerializer(serializers.ModelSerializer):
             "airavata_project_id",
             "run_count",
             "active_run_count",
-            "root",
         )
-        read_only_fields = ("deleted", "airavata_project_id", "root")
+        read_only_fields = ("deleted", "airavata_project_id")
 
     def get_run_count(self, obj):
         return obj.runs.count()
@@ -537,13 +535,11 @@ class ExperimentSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         request = self.context["request"]
-        name = get_valid_filename(validated_data.pop("name"))
-        root = models.RunsRoot.objects.create(root=name, owner=request.user)
+        # Experiment has no `root` field (RunsRoot grouping was removed); just
+        # create the experiment and provision its Airavata project.
         experiment = models.Experiment.objects.create(
             **validated_data,
             owner=request.user,
-            root=root,
-            name=name,
         )
         experiment.create_airavata_project(request)
         experiment.save()

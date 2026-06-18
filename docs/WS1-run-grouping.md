@@ -58,3 +58,27 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
   `Project.create_airavata_project` and `Experiment.create_airavata_project`.
 - **Result:** Submitting a grouped run creates the experiment's Airavata project
   and proceeds to launch; `POST /api/runs/9/submit/` returns 200 (was 500).
+
+## Follow-up fix — Experiment creation (`serializers.py`)
+- **Situation:** `POST /api/experiments/` returned 500
+  (`Experiment() got an unexpected keyword argument 'root'`). `ExperimentSerializer`
+  created a `RunsRoot` and passed `root=` to `Experiment.objects.create`, but the
+  `Experiment.root` field had been removed (commented out) — so naming a custom
+  experiment to group runs under was impossible.
+- **Task:** Make experiment creation work against the current `Experiment` model.
+- **Action:** Removed the stale `root` serializer field, the `"root"` entries in
+  `Meta.fields`/`read_only_fields`, and the `RunsRoot`/`root` handling in
+  `create()`; `create()` now just builds the Experiment and provisions its
+  Airavata project.
+- **Result:** `POST /api/experiments/` returns 201; a run created with
+  `experimentId` is grouped under that named experiment (verified: exp "N2
+  photoionization study" with its run).
+
+## Navigation — Runs/Experiments under the Views tab (`AppLeftNav.vue`)
+- **Situation:** The `/experiments` page existed but was unreachable from the
+  left nav; the Views tab only listed saved views.
+- **Task:** Surface both browse modes (Runs and Experiments) under the Views tab.
+- **Action:** Replaced the Views collapse contents with two options — "Runs"
+  (→ `/runs`) and "Experiments" (→ `/experiments`); rebuilt the frontend bundle.
+- **Result:** Expanding "Views" shows Runs and Experiments; the Experiments page
+  is now reachable from the sidebar.
