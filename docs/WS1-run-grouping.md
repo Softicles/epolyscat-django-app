@@ -45,3 +45,16 @@ grouped run.
 Existing pre-WS1 runs (created before this change) keep `experiment = None`; they
 still list but are not retroactively grouped. RunsRoot/`number` sub-grouping is
 not yet wired (the frontend doesn't drive it; `run.name` remains the label).
+
+## Follow-up fix — shadowed Thrift `Project` in `create_airavata_project` (`models.py`)
+- **Situation:** Once WS1 set `run.experiment`, `submit` took the
+  `run.experiment.create_airavata_project()` path and raised
+  `ValueError: "Project.owner" must be a "User" instance`. `models.py` both
+  imports the Thrift `Project` and defines a Django `class Project(models.Model)`
+  that shadows it, so `create_airavata_project` was constructing the Django model
+  (whose `owner` is a `User` FK) instead of the Thrift project.
+- **Task:** Make `create_airavata_project` build the Airavata (Thrift) project.
+- **Action:** Imported the Thrift project as `AiravataProject` and used it in both
+  `Project.create_airavata_project` and `Experiment.create_airavata_project`.
+- **Result:** Submitting a grouped run creates the experiment's Airavata project
+  and proceeds to launch; `POST /api/runs/9/submit/` returns 200 (was 500).
