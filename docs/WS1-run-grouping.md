@@ -191,3 +191,16 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
 - **Action:** Guard `runType` to return `-----` when neither type input is
   present, and substitute `—` for whichever part is missing.
 - **Result:** The run detail page loads for runs missing `Calculation_Type`.
+
+## Fix — run detail 404 on direct load (`run-storage.store.js`)
+- **Situation:** Hard-reloading `/runs/13` threw `Error trying to find run with
+  id: 13 ... Request failed with status code 404`. The store's `fetchRun` action
+  called `RunService.fetchRun(runId)` **positionally**, but the service expects an
+  object `{ runId }`, so `runId` was `undefined` → `GET /api/runs/undefined` →
+  404. On a direct load the run store is empty, so the `getRun` fallback was also
+  undefined and the action threw.
+- **Task:** Pass the run id correctly so direct navigation to a run loads it.
+- **Action:** Call `RunService.fetchRun({ runId })` (the other caller already used
+  the object form).
+- **Result:** Direct loads of `/runs/<id>` fetch the run (verified
+  `GET /api/runs/13/` → 200).
