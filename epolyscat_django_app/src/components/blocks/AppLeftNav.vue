@@ -38,6 +38,34 @@
             </div>
         </b-collapse>
         <div class="d-flex flex-row">
+            <router-link :to="`/experiments`" v-slot="{ href, navigate, isExactActive }" class="link">
+                <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
+                    <b-icon font-scale="1.2" icon="diagram3"/>
+                    <span>Experiments</span>
+                </b-link>
+            </router-link>
+            <b-button variant="link" size="sm" class="ml-2" v-b-toggle.show-experiments>
+                <b-icon :icon="(listExperiments) ? 'chevron-down' : 'chevron-right'"></b-icon>
+            </b-button>
+        </div>
+        <b-collapse id="show-experiments" v-model="listExperiments" accordion="show-more" role="tabpanel">
+            <div style="border-left: 1px solid black; margin-left: 40px">
+                <LoadingOverlay name="experiments" class="d-flex flex-column">
+                    <router-link style="margin-bottom: 0;" v-for="experiment in experiments" v-bind:key="experiment.experimentId" :to="`/runs/?experimentId=${experiment.experimentId}`" v-slot="{ href, navigate, isExactActive }" class="link">
+                        <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
+                            <span class="ellipses">{{ experiment.name }}</span>
+                        </b-link>
+                    </router-link>
+                    <div v-if="experiments.length == 0" style="color: gray; margin: 20px">No Experiments</div>
+                    <router-link v-else :to="`/experiments`" v-slot="{ href, navigate, isExactActive }" class="link">
+                        <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
+                            <span style="margin: 0 5px">All Experiments</span>
+                        </b-link>
+                    </router-link>
+                </LoadingOverlay>
+            </div>
+        </b-collapse>
+        <div class="d-flex flex-row">
             <router-link :to="`/views`" v-slot="{ href, navigate, isExactActive }" class="link">
                 <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
                     <b-icon font-scale="1.2" icon="eye"/>
@@ -53,18 +81,19 @@
         </div>
         <b-collapse id="show-views" v-model="listViews" accordion="show-more" role="tabpanel">
             <div style="border-left: 1px solid black; margin-left: 40px">
-                <router-link :to="`/runs`" v-slot="{ href, navigate, isExactActive }" class="link">
-                    <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
-                        <b-icon font-scale="1.1" icon="collection"/>
-                        <span style="margin: 0 5px">Runs</span>
-                    </b-link>
-                </router-link>
-                <router-link :to="`/experiments`" v-slot="{ href, navigate, isExactActive }" class="link">
-                    <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
-                        <b-icon font-scale="1.1" icon="diagram3"/>
-                        <span style="margin: 0 5px">Experiments</span>
-                    </b-link>
-                </router-link>
+                <LoadingOverlay name="views" class="d-flex flex-column">
+                    <router-link style="margin-bottom: 0;" v-for="view in views" v-bind:key="view" :to="`/views/${view.id}`" v-slot="{ href, navigate, isExactActive }" class="link">
+                        <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
+                            <span class="ellipses">{{ view.name }}</span>
+                        </b-link>
+                    </router-link>
+                    <div v-if="views.length == 0" style="color: gray; margin: 20px">No Views</div>
+                    <router-link v-else :to="`/views`" v-slot="{ href, navigate, isExactActive }" class="link">
+                        <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
+                            <span style="margin: 0 5px">All Views</span>
+                        </b-link>
+                    </router-link>
+                </LoadingOverlay>
             </div>
         </b-collapse>
         <router-link :to="`/tutorials`" v-slot="{ href, navigate, isExactActive }" class="link">
@@ -86,28 +115,31 @@ export default {
     data() {
         return {
             listRuns: true,
+            listExperiments: false,
             listViews: false
         }
     },
     computed: {
         views() {
-            let views = this.$store.getters["view/getViews"](); 
-
-            views.sort((view1, view2) => (new Date(view2.updated)).getTime() - (new Date(view1.updated)).getTime())
-            
-            return views.slice(0, 4);
+            let views = this.$store.getters["view/getViews"]() || [];
+            return [...views].sort((view1, view2) => (new Date(view2.updated)).getTime() - (new Date(view1.updated)).getTime()).slice(0, 4);
         },
         runs() {
-            let runs = this.$store.getters["run/getRuns"](); 
-
-            runs.sort((run1, run2) => (new Date(run2.updated)).getTime() - (new Date(run1.updated)).getTime())
-            
-            return runs.slice(0, 4);
+            let runs = this.$store.getters["run/getRuns"]() || [];
+            return [...runs].sort((run1, run2) => (new Date(run2.updated)).getTime() - (new Date(run1.updated)).getTime()).slice(0, 4);
+        },
+        experiments() {
+            let experiments = this.$store.getters["experiment/getExperiments"]({ page: 1, pageSize: 1000 }) || [];
+            return [...experiments].sort((a, b) => (new Date(b.updated)).getTime() - (new Date(a.updated)).getTime()).slice(0, 4);
         },
     },
     methods: {
     },
     async mounted() {
+        // Populate the nav sections; ignore backend errors so the nav still renders.
+        try { await this.$store.dispatch("run/fetchRuns", {}); } catch (e) { /* ignore */ }
+        try { await this.$store.dispatch("experiment/fetchExperiments", { page: 1, pageSize: 1000 }); } catch (e) { /* ignore */ }
+        try { await this.$store.dispatch("view/fetchViews"); } catch (e) { /* ignore */ }
         // this.$store.commit("loading/START", { key: "runs", message: "Fetching Runs" });
         // this.$store.commit("loading/START", { key: "views", message: "Fetching Views" });
 

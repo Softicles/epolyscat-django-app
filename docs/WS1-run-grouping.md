@@ -204,3 +204,20 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
   the object form).
 - **Result:** Direct loads of `/runs/<id>` fetch the run (verified
   `GET /api/runs/13/` → 200).
+
+## UI — Runs & Experiments as top-level nav sections (`AppLeftNav.vue`)
+- **Situation:** Runs/Experiments had been nested under the "Views" tab; the
+  design calls for **Experiments** and **All Runs** to be their own top-level
+  sections, with **Views** separate.
+- **Task:** Move Runs and Experiments out of Views to top-level collapsible
+  sections.
+- **Action:** Added a top-level **Experiments** collapsible section (lists the
+  user's experiments → `/runs/?experimentId=<id>`, plus an All Experiments link),
+  restored the **Views** collapse to list saved views, kept **Runs** top-level.
+  Added an `experiments` computed and populate runs/experiments/views in
+  `mounted` (each guarded so a backend outage doesn't break the nav).
+- **Result:** Left nav top-level order is Home · Runs · Experiments · Views ·
+  Tutorials, each collapsible listing its items.
+- **Note:** Grouping selected runs into a View ("Save selection") was already
+  implemented (`SaveSelectedRunsToViewForm` → `view/createView` →
+  `POST /api/views/` with `runIds`, added to the View by `ViewsViewSet.create`).
