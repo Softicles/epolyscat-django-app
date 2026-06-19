@@ -221,3 +221,17 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
 - **Note:** Grouping selected runs into a View ("Save selection") was already
   implemented (`SaveSelectedRunsToViewForm` → `view/createView` →
   `POST /api/views/` with `runIds`, added to the View by `ViewsViewSet.create`).
+
+## Resilience — runs list survives Airavata/backend failures (`serializers.py`)
+- **Situation:** After the configured backend was changed (dev → prod), runs whose
+  executions live on the *previous* backend made `RunSerializer.get_status` /
+  `get_job_id` call Airavata for experiment ids it can't resolve → exception →
+  the entire runs list 500'd.
+- **Task:** Don't fail the whole list when one run's Airavata status can't be
+  fetched.
+- **Action:** Wrapped `get_status` and `get_job_id` in `try/except`, falling back
+  to the cached `RemoteExecution.airavata_experiment_status` (or `"UNKNOWN"`) and
+  the cached `job_id`. (`get_job_status` was already guarded.)
+- **Result:** `GET /api/runs/` returns 200 even with stale / cross-backend runs;
+  affected runs show their last cached status. Verified 200 (vs 500) after
+  switching to the prod backend.

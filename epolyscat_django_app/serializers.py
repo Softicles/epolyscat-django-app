@@ -327,19 +327,11 @@ class RunSerializer(serializers.ModelSerializer):
         request = self.context["request"]
         if not run_instance.executions.exists():
             return "UNSUBMITTED"
-        else:
-            # get the last execution and return it's status
-            latest_execution: models.RemoteExecution = run_instance.latest_execution
+        # get the last execution and return its status
+        latest_execution: models.RemoteExecution = run_instance.latest_execution
+        try:
             # If not finished, try to get application specific status
             if not latest_execution.is_airavata_experiment_finished(request):
-                # experiment: ExperimentModel = request.airavata_client.getExperiment(
-                #     request.authz_token, latest_execution.airavata_experiment_id
-                # )
-
-                # application_status = experiment_util.intermediate_output.get_intermediate_output_process_status(
-                #     request, experiment, "bsr_prep.log"
-                # )
-
                 application_status = request.airavata_client.getExperimentStatus(
                     request.authz_token, latest_execution.airavata_experiment_id
                 )
@@ -360,6 +352,11 @@ class RunSerializer(serializers.ModelSerializer):
                     return status
 
             return latest_execution.get_airavata_experiment_status(request)
+        except Exception:
+            # Airavata unavailable, or the experiment belongs to a different
+            # backend than the one currently configured — fall back to the last
+            # cached status instead of failing the whole runs list.
+            return latest_execution.airavata_experiment_status or "UNKNOWN"
 
 
 
@@ -409,7 +406,11 @@ class RunSerializer(serializers.ModelSerializer):
         else:
             # get the last execution and return it's status
             latest_execution: models.RemoteExecution = run_instance.latest_execution
-            return latest_execution.get_job_id(request)
+            try:
+                return latest_execution.get_job_id(request)
+            except Exception:
+                # Airavata unavailable / experiment from a different backend
+                return latest_execution.job_id
 
 
 
