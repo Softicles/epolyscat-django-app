@@ -295,7 +295,6 @@ class Run(models.Model):
                 return False
         return True
 
-    @property
     def is_cancelable(self, request):
         latest_execution: RemoteExecution = self.latest_execution
         return latest_execution is not None and latest_execution.is_cancelable(request)

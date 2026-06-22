@@ -434,12 +434,26 @@ class RunViewSet(viewsets.ModelViewSet):
         # change to api call
         app_interface_id = self._get_eployscat_app_interface_id(request, run)
 
-        inputs = {};
+        input_values = self._build_input_values(request, run)
 
+        self._create_remote_execution(
+            request, run, app_interface_id, input_values,
+            serializer.data["is_tutorial"]
+        )
+
+        serializer = self.get_serializer(run)
+        return Response(serializer.data)
+
+    def _build_input_values(self, request, run):
+        """Map a run's stored inputs to an {input_name: value} dict for launch.
+
+        File inputs are copied into the experiment input store and represented by
+        their (comma-joined, for URI_COLLECTION) data-product URIs; non-file
+        inputs pass through their stored value."""
+        input_values = {}
         for input in run.inputs.all():
             if input.type == "files":
                 data_product_uris = []
-
                 for file in input.files.all():
                     opened_file = user_storage.open_file(
                         request, data_product_uri=file.data_product_uri
@@ -447,43 +461,20 @@ class RunViewSet(viewsets.ModelViewSet):
                     data_product_uris.append(user_storage.save_input_file(
                         request, opened_file, name=file.name
                     ).productUri)
-
-                # still not sure if this is what URI_COLLECTION is expecting
-                inputs[input.name] = ",".join(data_product_uris)
+                input_values[input.name] = ",".join(data_product_uris)
             else:
-                inputs[input.name] = input.value
-
-        self._create_remote_execution(request, run, inputs, app_interface_id, inputs, serializer.data["is_tutorial"])
-
-        serializer = self.get_serializer(run)
-        return Response(serializer.data)
+                input_values[input.name] = input.value
+        return input_values
 
     def status(self, request, pk=None):
         run: models.Run = self.get_object()
 
         return Response(run.status)
 
-
-        # Copy the inpc file from the run directory into the experiment
-        # directory by setting it as an input file
-        inpc_file = user_storage.open_file(
-            request, data_product_uri=run.inpc_data_product_uri
-        )
-        inpc_file_input_value = user_storage.save_input_file(
-            request, inpc_file, name="inpc.inp"
-        )
-
-        input_values = {"Input-File": inpc_file_input_value.productUri}
-
-        self._create_remote_execution(request, run, app_interface_id, input_values)
-
-        serializer = self.get_serializer(run)
-        return Response(serializer.data)
-
     @action(detail=True, methods=["post"])
     def resubmit(self, request, pk=None):
         run: models.Run = self.get_object()
-        serializer = self.get_serializer(run, data=request.data)
+        serializer = self.get_serializer(run, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
@@ -496,19 +487,16 @@ class RunViewSet(viewsets.ModelViewSet):
 
         app_interface_id = self._get_eployscat_app_interface_id(request, run)
 
-        # prepare inputs to remote execution and call self._create_remote_execution
-        inpc_file = user_storage.open_file(
-            request, data_product_uri=run.inpc_data_product_uri
-        )
-        inpc_file_input_value = user_storage.save_input_file(
-            request, inpc_file, name="inpc.inp"
-        )
-        input_values = {
-            "Input-File": inpc_file_input_value.productUri,
-            "Previous_JobID_Restart": job_id,
-        }
+        # Re-launch with the run's stored inputs, plus the previous job id so the
+        # application can restart from it. Input names absent from the resolved
+        # interface are ignored by _create_remote_execution's mapping.
+        input_values = self._build_input_values(request, run)
+        input_values["Previous_JobID_Restart"] = job_id
 
-        self._create_remote_execution(request, run, app_interface_id, input_values)
+        self._create_remote_execution(
+            request, run, app_interface_id, input_values,
+            serializer.data["is_tutorial"]
+        )
 
         serializer = self.get_serializer(run)
         return Response(serializer.data)
@@ -517,7 +505,6 @@ class RunViewSet(viewsets.ModelViewSet):
         self,
         request,
         run: models.Run,
-        inputs: typing.Dict[str, str],
         app_interface_id: str,
         input_values: typing.Dict[str, str],
         is_tutorial: bool
