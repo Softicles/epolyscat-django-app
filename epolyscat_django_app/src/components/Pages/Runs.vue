@@ -646,11 +646,11 @@ export default {
             this.$store.commit("loading/START", { key: this.loadingOverlayName, message: `Resubmitting "${run.name}"` });
 
                 try {
-                    run = await this.$store.dispatch("run/submitRun", {
+                    run = await this.$store.dispatch("run/resubmitRun", {
                         runId: run.id
                     });
                 } catch (error) {
-                    eventBus.$emit("error", { name: `Error while trying to submit the run`, error });
+                    eventBus.$emit("error", { name: `Error while trying to resubmit the run`, error });
                 }
 
                 this.$store.commit("loading/STOP", { key: this.loadingOverlayName, message: `Resubmitting "${run.name}"` });

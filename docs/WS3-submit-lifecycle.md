@@ -81,6 +81,28 @@ Each change is described with STAR (Situation, Task, Action, Result).
   experiment's `airavata_project_id` was rewritten to a fresh valid prod project.
   Submits no longer roll back on stale cross-backend project ids.
 
+## 6. Wire the resubmit UI to the resubmit endpoint (`run-storage.store.js`, `Runs.vue`)
+- **Situation:** The resubmit backend (`POST /runs/<id>/resubmit/`) and
+  `RunService.resubmitRun` existed, but no UI reached them correctly. The Runs
+  table's "Resubmit" button handler dispatched **`run/submitRun`** (→ `/submit/`),
+  so it re-*submitted* a fresh execution instead of resubmitting with
+  `Previous_JobID_Restart`; there was no `run/resubmitRun` store action; and the
+  only correct path (the `/resubmit-run` page via `RunActions`) was unreachable
+  because `RunActions` is commented out of `Runs.vue`.
+- **Task:** Make the Runs-table "Resubmit" button actually call the resubmit
+  endpoint.
+- **Action:** Added a `run/resubmitRun` store action (mirrors `submitRun`, calls
+  `RunService.resubmitRun({runId})` → `/resubmit/`, optimistic `EXECUTING`) and
+  repointed `Runs.vue`'s `resubmitRun` handler from `run/submitRun` to
+  `run/resubmitRun` (also corrected the error message). The button keeps its
+  status-based gate (enabled only for `COMPLETED`/`FAILED` runs) to avoid the
+  per-run Airavata calls that a `can_resubmit` field would add to list
+  serialization; it appears for submitted runs in a View/Tutorial context.
+- **Result:** Clicking Resubmit launches a second execution via `/resubmit/`
+  (restart from the previous job) instead of re-submitting. Frontend-only change;
+  bundle rebuilt. Note: the dedicated `/resubmit-run` page remains reachable only
+  via the still-commented `RunActions` component and was left as-is.
+
 ## Already in place (verified, no change needed)
 - **Status caching:** `RemoteExecution.get_airavata_experiment_status` only calls
   Airavata when the cached state is non-terminal; otherwise returns the stored

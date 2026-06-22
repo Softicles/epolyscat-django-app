@@ -276,6 +276,19 @@ const actions = {
 
         return run;
     },
+    async resubmitRun({commit}, { runId }) {
+        // Re-launch with the run's stored inputs/resources, restarting from the
+        // previous job (backend reads run.inputs + Previous_JobID_Restart).
+        const run = await RunService.resubmitRun({ runId });
+
+        run.status = "EXECUTING";
+        run.jobStatus = "NO STATUS";
+        run.displayStatus = "EXECUTING";
+
+        commit("SET_RUN_MAP", { runs: [run] });
+
+        return run;
+    },
     async deleteRun({commit}, { runId, deleteAssociated }) {
         await RunService.deleteRun({ runId, deleteAssociated });
 
