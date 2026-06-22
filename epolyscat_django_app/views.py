@@ -897,6 +897,36 @@ class PlotParametersViewSet(viewsets.ModelViewSet):
         return models.PlotParameters.filter_by_user(request).order_by("-last_use")
 
 
+class ScriptsNotInstalled(exceptions.APIException):
+    status_code = status.HTTP_501_NOT_IMPLEMENTED
+    default_detail = (
+        "ePolyScat analysis scripts are not installed in this deployment."
+    )
+    default_code = "scripts_not_installed"
+
+
+def _require_script(script_name):
+    """Return the path to an ePolyScat analysis script, or raise a clear error.
+
+    plot.py / lRuns.py live in the SCRIPTS dir (see apps.py) and are not bundled
+    with the app. Without this guard a missing script just makes `python
+    <missing>` exit non-zero with an opaque "can't open file" message; here we
+    fail fast with an actionable error before shelling out (and before any
+    run.root access in the lRuns path)."""
+    script_path = os.path.join(
+        apps.get_app_config("epolyscat_django_app").SCRIPTS, script_name
+    )
+    if not os.path.isfile(script_path):
+        raise ScriptsNotInstalled(
+            detail=(
+                f"ePolyScat analysis script '{script_name}' is not installed "
+                f"(expected at {script_path}). Install the ePolyScat SCRIPTS "
+                "directory to enable plotting and input listing."
+            )
+        )
+    return script_path
+
+
 @api_view(["POST"])
 def plot(request):
     "Returns dictionary with 'mime-type' and 'plot' as base64 encoded image."
@@ -908,7 +938,7 @@ def plot(request):
 
     plot_command = [
         sys.executable,
-        os.path.join(apps.get_app_config("epolyscat_django_app").SCRIPTS, "plot.py"),
+        _require_script("plot.py"),
     ]
 
     plotfiles = serializer.validated_data["plotfiles"]
@@ -1112,14 +1142,19 @@ def user_run_file_exists(request, run, filename):
     if modl_runid_output is None or not user_storage.exists(
         request, data_product_uri=modl_runid_output.value
     ):
-        raise Exception("Modl_RunID file is missing")
+        # No Modl_RunID output (e.g. interfaces that don't emit it): the file
+        # can't be located this way. Honor the "else None" contract so callers
+        # treat it as not-found rather than 500-ing.
+        logger.debug(f"No Modl_RunID output for run {run.id}; {filename} not locatable")
+        return None
     modl_runid_file = user_storage.open_file(
         request, data_product_uri=modl_runid_output.value
     )
     model_runid = modl_runid_file.read().decode()
     m = re.match(r"(\S+) (\S+)", model_runid)
     if m is None:
-        raise Exception(f"Invalid Modl_RunID file contents: {model_runid}")
+        logger.warning(f"Invalid Modl_RunID file contents for run {run.id}: {model_runid!r}")
+        return None
     model, run_id = m.group(1, 2)
 
 
@@ -1455,18 +1490,28 @@ class LRunsResult(typing.NamedTuple):
     success: bool
 
 
+def _run_root_name(run):
+    "Directory label for a run's group; API-created runs have no RunsRoot."
+    return run.root.root if run.root else "runs"
+
+
+def _run_number(run):
+    "Identifier for a run within its group; falls back to the run id."
+    return run.number if run.number else str(run.id)
+
+
 def _execute_lruns(request, runs, diff=False) -> LRunsResult:
     """Runs lRuns.py and returns stdout and stderr."""
 
     lruns_command = [
         sys.executable,
-        os.path.join(apps.get_app_config("epolyscat_django_app").SCRIPTS, "lRuns.py"),
+        _require_script("lRuns.py"),
     ]
 
     with runs_dir(request, runs, ["inpc", "outf", "linp"]) as tmp_runs_dir:
 
-        lruns_command.append(os.path.join(tmp_runs_dir, runs[0].root.root))
-        lruns_command.append(",".join([run.number for run in runs]))
+        lruns_command.append(os.path.join(tmp_runs_dir, _run_root_name(runs[0])))
+        lruns_command.append(",".join([_run_number(run) for run in runs]))
         if diff:
             lruns_command.append("-diff")
 
@@ -1501,7 +1546,7 @@ def runs_dir(request, runs, filenames, ignore_missing=False):
             for filename in filenames:
                 try:
                     with open_run_file(request, run, filename) as f:
-                        rundir = os.path.join(tmpdir, run.root.root, run.number)
+                        rundir = os.path.join(tmpdir, _run_root_name(run), _run_number(run))
                         os.makedirs(rundir, exist_ok=True)
                         logger.debug(f"copying {run.filepath}/{filename} to {rundir}")
                         with open(os.path.join(rundir, filename), "wb") as fcopy:
