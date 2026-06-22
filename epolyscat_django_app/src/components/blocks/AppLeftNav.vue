@@ -121,7 +121,9 @@ export default {
     },
     computed: {
         views() {
-            let views = this.$store.getters["view/getViews"]() || [];
+            // Only user-created views; the auto-created "Unsubmitted"/"Selected"
+            // system views are internal and shouldn't appear in the nav.
+            let views = (this.$store.getters["view/getViews"]() || []).filter((view) => view.type === "user-defined");
             return [...views].sort((view1, view2) => (new Date(view2.updated)).getTime() - (new Date(view1.updated)).getTime()).slice(0, 4);
         },
         runs() {

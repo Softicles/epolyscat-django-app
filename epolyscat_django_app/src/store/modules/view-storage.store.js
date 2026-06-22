@@ -1,8 +1,8 @@
 import {ViewService} from "@/service/epolyscat-service";
 
 const state = {
-    //viewListMap: {},
-    //viewListPaginationMap: {},
+    viewListMap: {},
+    viewListPaginationMap: {},
     viewMap: {}
 }
 
@@ -36,7 +36,7 @@ const actions = {
         //return views;
     //},
     async deleteView({commit}, { viewId }) {
-        await ViewService.deleteView(viewId);
+        await ViewService.deleteView({ viewId });
 
         commit("REMOVE_VIEW", { viewId });
         commit("run/REMOVE_VIEW", { viewId }, { root: true });
@@ -175,7 +175,7 @@ const getters = {
     },
 */
     getViews: (state) => {
-        return () => Object.values(state.viewMap).filter(view => view.id != -1);
+        return () => Object.values(state.viewMap).filter(view => view.viewId != -1);
     },
 
     getViewsPagination: (state) => {

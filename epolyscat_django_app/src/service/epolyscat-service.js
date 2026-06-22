@@ -518,19 +518,23 @@ export const ViewService = {
     //readonlyViewTypes: ["unsubmitted", "tutorial"],
 
     encodeObj(obj) {
+        const formatDate = (value) =>
+            value
+                ? new Date(value).toLocaleString("en-US", {
+                      dateStyle: "long",
+                      timeStyle: "medium",
+                  })
+                : value;
         return {
-            //viewId: obj.id,
             id: obj.id,
+            viewId: obj.id,
             name: obj.name,
-            //owner: obj.owner,
-            created: obj.created,
-            updated: obj.updated,
-
-            //created: new Date(obj.created).toLocaleString(),
-            //updated: new Date(obj.updated).toLocaleString(),
-            //deleted: obj.deleted,
-            //type: obj.type,
-            //activeRunCount: obj.active_run_count,
+            owner: obj.owner,
+            created: formatDate(obj.created),
+            updated: formatDate(obj.updated),
+            deleted: obj.deleted,
+            type: obj.type,
+            activeRunCount: obj.active_run_count,
             runCount: obj.run_count,
             runs: obj.runs.map(RunService.encodeObj)
             //readonly: ViewService.readonlyViewTypes.indexOf(obj.type) >= 0

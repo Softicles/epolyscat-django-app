@@ -27,13 +27,13 @@
         </b-modal>
       </div>
       <div class="w-100 overflow-auto">
-        <table-overlay-info :data="views" :rows="5" :columns="4" empty-label="No views available.">
+        <table-overlay-info :data="views" :rows="5" :columns="5"
+                            empty-label="No views created yet — select runs on the Runs page and use “Save selection” to make one">
           <b-table-simple>
             <b-thead>
               <b-tr>
                 <b-th></b-th>
                 <b-th>Name</b-th>
-                <b-th>Description</b-th>
                 <b-th>Last edited</b-th>
                 <b-th>Active runs</b-th>
                 <b-th>Actions</b-th>
@@ -51,9 +51,6 @@
                       <div class="overflow-auto" style="max-width: 200px;">{{ view.name }}</div>
                     </b-link>
                   </router-link>
-                </b-td>
-                <b-td>
-                  <div class="overflow-auto" style="max-width: 200px;">{{ view.description }}</div>
                 </b-td>
                 <b-td>{{ view.updated }}</b-td>
                 <b-td class="text-center" style="min-width: 110px; max-width: 110px;">
@@ -111,10 +108,15 @@ export default {
   },
   computed: {
     views() {
-      return this.$store.getters["view/getViews"]({page: this.page, pageSize: this.pageSize});
+      // Only user-created views belong on this page; the auto-created system
+      // views ("Unsubmitted"/"Selected") are internal and not user-deletable.
+      const all = this.$store.getters["view/getViews"]({page: this.page, pageSize: this.pageSize});
+      return all ? all.filter((view) => view.type === "user-defined") : all;
     },
     viewsPagination() {
-      return this.$store.getters["view/getViewsPagination"]({page: this.page, pageSize: this.pageSize});
+      // null until the first fetch resolves; the template binds
+      // viewsPagination.total during the initial render, so guard it.
+      return this.$store.getters["view/getViewsPagination"]({page: this.page, pageSize: this.pageSize}) || {total: 0};
     },
     selectedCount() {
       return this.selectedViewIds.length;
@@ -146,6 +148,9 @@ export default {
       this.processingDelete = {...this.processingDelete, [viewId]: true};
       try {
         await ViewService.deleteView({viewId});
+        // getViews reads the whole accumulating view map, so a refresh alone
+        // won't drop the deleted view — remove it from the store explicitly.
+        this.$store.commit("view/REMOVE_VIEW", {viewId});
         this.refreshData();
       } catch (e) {
         //TODO

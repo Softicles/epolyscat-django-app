@@ -681,13 +681,14 @@ class ViewSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        request = self.context["request"]
+        # The view passes owner via serializer.save(owner=...), so it is already
+        # in validated_data; passing it again duplicates the kwarg (500). A view
+        # created here is always user-defined regardless of any supplied type.
+        validated_data.pop("type", None)
         view = models.View.objects.create(
             **validated_data,
             type="user-defined",
-            owner=request.user,
         )
-        view.save()
         return view
 
     @transaction.atomic

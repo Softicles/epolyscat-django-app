@@ -347,8 +347,9 @@ export default {
                 return splitPath[splitPath.length - 1] == "tutorials";
     },
     viewId() {
+                // viewId arrives as a query param (/runs/?viewId=4), like experimentId.
                 return (this.isTutorials) ? -1 :
-                    ("viewId" in this.$route.params) ? this.$route.params.viewId : null;
+                    (this.$route.query.viewId != null) ? this.$route.query.viewId : null;
     },
 
     experimentId() {
@@ -678,6 +679,18 @@ export default {
 
                 return statuses.indexOf(status1.toUpperCase()) - statuses.indexOf(status2.toUpperCase());
             }
+  },
+  watch: {
+      // The Runs component is reused across /runs, /runs/?viewId=, and
+      // /runs/?experimentId=, so re-fetch when the filter changes. Reset the
+      // cached view so leaving a view (or switching views) doesn't show stale runs.
+      viewId() {
+                this.view = null;
+                this.refreshData(true);
+      },
+      experimentId() {
+                this.refreshData(true);
+      },
   },
   mounted() {
       this.refreshData(true);

@@ -1240,9 +1240,11 @@ class ViewsViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         #request = self.request
         return (
-            # Returns Runs owned by the user
+            # Views owned by the user that haven't been (soft-)deleted. Without
+            # the deleted=False filter, perform_destroy's soft delete leaves the
+            # view in the list, so it never disappears from the UI.
             models.View.objects.filter(
-                Q(owner=self.request.user)
+                Q(owner=self.request.user), deleted=False
             )
         )
 
