@@ -121,12 +121,18 @@
                             {{ item.experimentName || "—" }}
                         </template>
                         <template v-slot:actions="{ item }">
-                            <!-- All Runs view: clone + delete only, matching the design -->
+                            <!-- All Runs / Experiment view: clone, resubmit (submitted runs), delete -->
                             <template v-if="view == null && !isTutorials">
                                 <b-button
                                     variant="link" size="sm" class="action-icon" @click="cloneRun(item)"
                                     v-b-tooltip.hover title="Clone"
                                 ><b-icon icon="files" /></b-button>
+                                <b-button
+                                    v-if="item.displayStatus.toUpperCase() != 'UNSUBMITTED'"
+                                    :disabled="['COMPLETED', 'FAILED'].indexOf(item.status.toUpperCase()) == -1"
+                                    variant="link" size="sm" class="action-icon" @click="resubmitRun(item)"
+                                    v-b-tooltip.hover title="Resubmit"
+                                ><b-icon icon="arrow90deg-right"/></b-button>
                                 <b-button
                                     variant="link" size="sm" class="action-icon" @click="deleteRuns([item])"
                                     v-b-tooltip.hover title="Delete"

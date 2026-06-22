@@ -97,7 +97,10 @@ Each change is described with STAR (Situation, Task, Action, Result).
   `run/resubmitRun` (also corrected the error message). The button keeps its
   status-based gate (enabled only for `COMPLETED`/`FAILED` runs) to avoid the
   per-run Airavata calls that a `can_resubmit` field would add to list
-  serialization; it appears for submitted runs in a View/Tutorial context.
+  serialization. The button now appears for submitted runs in **all** list
+  contexts — the **All Runs** and **Experiment** views (the `view == null`
+  branch, between Clone and Delete) as well as View/Tutorial contexts — shown only
+  for non-`UNSUBMITTED` runs and disabled until the run is `COMPLETED`/`FAILED`.
 - **Result:** Clicking Resubmit launches a second execution via `/resubmit/`
   (restart from the previous job) instead of re-submitting. Frontend-only change;
   bundle rebuilt. Note: the dedicated `/resubmit-run` page remains reachable only
