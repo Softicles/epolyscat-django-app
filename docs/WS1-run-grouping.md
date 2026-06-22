@@ -235,3 +235,25 @@ not yet wired (the frontend doesn't drive it; `run.name` remains the label).
 - **Result:** `GET /api/runs/` returns 200 even with stale / cross-backend runs;
   affected runs show their last cached status. Verified 200 (vs 500) after
   switching to the prod backend.
+
+## Fix — Create-Run 500 on optional/missing input fields (`views.py`)
+- **Situation:** `POST /api/runs/` crashed with `500` on the prod backend.
+  `_create_input` did `value=input["value"]` and `_update_input` did
+  `old_input.value = updated_input["value"]`, but the Create-Run form sends
+  non-file inputs (optional STRING fields) without a `value` key → `KeyError:
+  'value'`. Separately, `_save_file` did `file_data["isPlaintext"]`, but a file
+  object can arrive with `contents` and no `isPlaintext` flag (e.g. an older
+  cached frontend bundle) → `KeyError: 'isPlaintext'`. Because `create` is
+  `@transaction.atomic`, either crash rolled back the whole run, and the UI then
+  fell back to the placeholder run id `-1` (`submit/-1` → 404).
+- **Task:** Make run creation tolerant of inputs/files that omit optional keys.
+- **Action:** `_create_input`/`_update_input` now use `input.get("value")` (the
+  `Input.value` column is `null=True`, and the file branch already stores
+  `value=None`, so a missing value persists as `None`). `_save_file` now uses
+  `file_data.get("isPlaintext", True)` — defaulting to plaintext is safe because
+  ePolyScat inputs are text and the frontend's binary path always sets
+  `isPlaintext=False` explicitly alongside base64 contents.
+- **Result:** `POST /api/runs/` returns 200 for forms with empty optional
+  fields and for files lacking the plaintext flag. Verified by replaying both
+  shapes against the live server (runs created, input file saved); the run no
+  longer rolls back to id `-1`.

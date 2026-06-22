@@ -304,7 +304,7 @@ class RunViewSet(viewsets.ModelViewSet):
                 type=input["type"],
                 run=run_instance,
                 name=input["name"],
-                value=input["value"]
+                value=input.get("value")
             )
 
     def _update_input(self, request, run_instance, updated_input):
@@ -346,7 +346,7 @@ class RunViewSet(viewsets.ModelViewSet):
                         if not updated_file["deleted"]:
                             self._save_file(request, run_instance, updated_file, old_input)
             else:
-                old_input.value = updated_input["value"]
+                old_input.value = updated_input.get("value")
 
             old_input.save()
 
@@ -361,7 +361,7 @@ class RunViewSet(viewsets.ModelViewSet):
                 content_type = user_storage.get_data_product_metadata(
                     request, data_product_uri=file_data["dataProductURI"]
                 )["mime_type"]
-            elif file_data["isPlaintext"]:
+            elif file_data.get("isPlaintext", True):
                 file = io.StringIO(file_data["contents"])
                 content_type = "text/plain"
             else:
