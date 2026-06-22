@@ -466,6 +466,19 @@ class RunViewSet(viewsets.ModelViewSet):
                 input_values[input.name] = input.value
         return input_values
 
+    def _project_exists(self, request, project_id):
+        """True if project_id resolves on the current gateway. Used to detect a
+        cached project id that was created on a different backend (e.g. after a
+        dev->prod switch) and no longer exists, which would otherwise make
+        createExperiment roll back on the invalid projectId."""
+        if not project_id:
+            return False
+        try:
+            request.airavata_client.getProject(request.authz_token, project_id)
+            return True
+        except Exception:
+            return False
+
     def status(self, request, pk=None):
         run: models.Run = self.get_object()
 
@@ -525,7 +538,11 @@ class RunViewSet(viewsets.ModelViewSet):
         experiment.experimentOutputs = application_interface.applicationOutputs.copy()
         experiment.executionId = app_interface_id
         if run.experiment is not None:
-            if run.experiment.airavata_project_id is None:
+            # Re-provision if the experiment has no project yet, or its cached
+            # project id no longer resolves on the current gateway (e.g. it was
+            # created on a different backend). Otherwise createExperiment rolls
+            # back on the invalid projectId.
+            if not self._project_exists(request, run.experiment.airavata_project_id):
                 run.experiment.create_airavata_project(request)
                 run.experiment.save()
             experiment.projectId = run.experiment.airavata_project_id

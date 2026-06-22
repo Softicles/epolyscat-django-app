@@ -61,6 +61,26 @@ Each change is described with STAR (Situation, Task, Action, Result).
 - **Result:** `instance.is_cancelable(request)` works, delegating to the latest
   execution; safe to re-enable the `cancelable` serializer field.
 
+## 5. Re-provision a stale/cross-backend experiment project on submit (`views.py`)
+- **Situation:** `_create_remote_execution` only re-created the experiment's
+  Airavata project when `airavata_project_id` was `None`. An experiment created
+  against one backend (e.g. dev) keeps that backend's project id; after switching
+  to another backend (prod), the cached id no longer resolves, so
+  `createExperiment` failed with "the transaction has been rolled back" on every
+  submit of a dev-era experiment. Confirmed live: the user's prod account had only
+  `Default_Project_...`, while experiments carried dev `Runs_for_experiment_...`
+  ids.
+- **Task:** Make submit resilient to a project id that doesn't exist on the
+  current gateway.
+- **Action:** Added `_project_exists(request, project_id)` (returns False when the
+  id is empty or `getProject` raises) and changed the experiment branch to
+  re-provision when `not self._project_exists(...)` — i.e. when the project is
+  missing **or** absent on the current gateway — instead of only when `None`.
+- **Result:** Verified live: a run under an experiment carrying the known-missing
+  dev project id submitted successfully (HTTP 200, execution launched); the
+  experiment's `airavata_project_id` was rewritten to a fresh valid prod project.
+  Submits no longer roll back on stale cross-backend project ids.
+
 ## Already in place (verified, no change needed)
 - **Status caching:** `RemoteExecution.get_airavata_experiment_status` only calls
   Airavata when the cached state is non-terminal; otherwise returns the stored
@@ -72,13 +92,17 @@ Each change is described with STAR (Situation, Task, Action, Result).
   launches.
 
 ## Verification
-`manage.py check` clean. Static review confirms both launch paths share
-`_build_input_values` and call `_create_remote_execution` with the 5-arg
-signature. Live submit/resubmit launches a real job on the prod `amp` gateway
-(consumes a compute allocation), so end-to-end launch is left for an explicit,
-user-driven test: create a run with an Input-File, `POST /runs/<id>/submit/`
-(expect a `RemoteExecution` row + cached status), then `POST /runs/<id>/resubmit/`
-(expect a second execution; requires a prior execution with a job id).
+`manage.py check` clean. Verified live end-to-end against the prod `amp` gateway
+(Default GRP, Expanse `shared` queue, input `ePolyscat_Input_File`):
+- **submit** → HTTP 200, a `RemoteExecution` row created (resource Expanse);
+  status cached and advanced `CREATED → EXECUTING → COMPLETED` via the
+  non-terminal re-query path; `job_id` resolved (51256259).
+- **resubmit while running** → correctly refused with "Run already has a currently
+  running execution" (reaches its logic; no `TypeError` from the old call).
+- **resubmit after terminal** → HTTP 200, launched execution #2 with
+  `Previous_JobID_Restart`.
+- **project guard** → a run under an experiment with a known-missing dev project
+  id submitted successfully; the experiment's project was re-provisioned on prod.
 
 ## Note on the plan's "populate inpc_data_product_uri" item
 The original plan proposed populating `inpc_data_product_uri` on create/submit so
