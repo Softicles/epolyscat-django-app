@@ -101,6 +101,9 @@ Each change is described with STAR (Situation, Task, Action, Result).
   contexts — the **All Runs** and **Experiment** views (the `view == null`
   branch, between Clone and Delete) as well as View/Tutorial contexts — shown only
   for non-`UNSUBMITTED` runs and disabled until the run is `COMPLETED`/`FAILED`.
+  The same `view == null` branch also shows a **Submit** button for `UNSUBMITTED`
+  runs (mutually exclusive with Resubmit, mirroring the View-context layout), so
+  unsubmitted runs can be launched directly from the All Runs / Experiment lists.
 - **Result:** Clicking Resubmit launches a second execution via `/resubmit/`
   (restart from the previous job) instead of re-submitting. Frontend-only change;
   bundle rebuilt. Note: the dedicated `/resubmit-run` page remains reachable only
