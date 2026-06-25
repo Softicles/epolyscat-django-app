@@ -1065,7 +1065,7 @@ def user_run_file_exists(request, run, filename):
     experiment_model = None
     for execution in run.executions.order_by("-created"):
         status_name = execution.get_airavata_experiment_status(request)
-        experiment_state = ExperimentState._NAMES_TO_VALUES[status_name]
+        experiment_state = ExperimentState[status_name].value
         if experiment_state == ExperimentState.COMPLETED:
             logger.debug(f"getExperiment({execution.airavata_experiment_id})")
             experiment_model = request.airavata_client.getExperiment(
@@ -1130,7 +1130,7 @@ def get_run_output_data_product_uri(request, run: models.Run, data_type: str):
     # Find the output by data type
     output = None
     for output in experiment_model.experimentOutputs:
-        output_type_name = DataType._VALUES_TO_NAMES[output.type]
+        output_type_name = DataType(output.type).name
         if output_type_name == data_type:
             output = output
             break
@@ -1840,7 +1840,7 @@ def user_run_file_exists(request, run, filename):
     experiment_model = None
     for execution in run.executions.order_by("-created"):
         status_name = execution.get_airavata_experiment_status(request)
-        experiment_state = ExperimentState._NAMES_TO_VALUES[status_name]
+        experiment_state = ExperimentState[status_name].value
         print(f"DEBUG: Execution {execution.airavata_experiment_id} status: {status_name}")
         if experiment_state == ExperimentState.COMPLETED:
             logger.debug(f"getExperiment({execution.airavata_experiment_id})")
@@ -1931,7 +1931,7 @@ def get_run_output_data_product_uri(request, run: models.Run, data_type: str):
     # Find the output by data type
     output = None
     for output in experiment_model.experimentOutputs:
-        output_type_name = DataType._VALUES_TO_NAMES[output.type]
+        output_type_name = DataType(output.type).name
         if output_type_name == data_type:
             output = output
             break
