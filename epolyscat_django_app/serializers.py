@@ -66,7 +66,7 @@ class RunSerializer(serializers.ModelSerializer):
     job_status = serializers.SerializerMethodField()
     is_tutorial = serializers.SerializerMethodField()
     job_id = serializers.SerializerMethodField()
-    #resource = serializers.SerializerMethodField()
+    resource = serializers.SerializerMethodField()
     #resource_short = serializers.SerializerMethodField()
     #executions = serializers.SlugRelatedField(
     #    slug_field="airavata_experiment_id", read_only=True, many=True
@@ -82,7 +82,7 @@ class RunSerializer(serializers.ModelSerializer):
             "created", "updated", "deleted", 'is_email_notification_on',
             "group_resource_profile_id", "compute_resource_id",
             "queue_name", "core_count", "node_count", "walltime_limit", "total_physical_memory",
-            "inputs", "executions", "status", "job_status", "is_tutorial", "job_id", 
+            "inputs", "executions", "status", "job_status", "is_tutorial", "job_id", "resource",
             #"directedit", "inpc_download_url", "cancelable","can_resubmit", "input_table", "root",
             #"number", "root", "experiment", "resource", #"resource_short", "job_id", 
         )
