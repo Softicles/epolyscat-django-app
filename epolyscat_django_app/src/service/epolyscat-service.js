@@ -975,7 +975,7 @@ export const ViewService = {
 
     encodeObj(obj) {
         return {
-            //viewId: obj.id,
+            viewId: obj.id,
             id: obj.id,
             name: obj.name,
             //owner: obj.owner,
