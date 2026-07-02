@@ -54,7 +54,7 @@
         <b-collapse id="show-views" v-model="listViews" accordion="show-more" role="tabpanel">
             <div style="border-left: 1px solid black; margin-left: 40px">
                 <LoadingOverlay name="views" class="d-flex flex-column">
-                    <router-link style="margin-bottom: 0;" v-for="view in views" v-bind:key="view" :to="`/views/${view.id}`" v-slot="{ href, navigate, isExactActive }" class="link">
+                    <router-link style="margin-bottom: 0;" v-for="view in views" v-bind:key="view.viewId" :to="`/views/${view.viewId}`" v-slot="{ href, navigate, isExactActive }" class="link">
                         <b-link variant="link" class="d-flex flex-row text-center" :class="{active: isExactActive}" :href="href" @click="navigate">
                             <span class="ellipses">{{ view.name }}</span>
                         </b-link>

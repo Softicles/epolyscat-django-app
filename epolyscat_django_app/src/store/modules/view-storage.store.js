@@ -102,10 +102,10 @@ const actions = {
     },
     async insertIntoViews({commit, getters}, { viewIds, run }) {
         for (const viewId of viewIds) {
-            let view = getters["getView"](viewId);
+            let view = getters["getView"]({viewId});
 
             if (!view) {
-                view = await ViewService.fetchView(viewId);
+                view = await ViewService.fetchView({viewId});
                 commit("SET_VIEW_MAP", { views: [view] });
             }
 
