@@ -12,11 +12,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 
-from airavata.model.application.io.ttypes import DataType
-from airavata.model.experiment.ttypes import ExperimentModel, UserConfigurationDataModel
-from airavata.model.scheduling.ttypes import ComputationalResourceSchedulingModel
-from airavata.model.status.ttypes import ExperimentState
-from airavata_django_portal_sdk import experiment_util, user_storage
+from airavata_django_portal_sdk import user_storage
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -38,7 +34,7 @@ from rest_framework import (
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 
-from epolyscat_django_app import models, serializers
+from epolyscat_django_app import airavata_gateway, models, serializers
 from epolyscat_django_app.epolyscat_utils import Linp, is_empty
 
 BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
@@ -528,69 +524,41 @@ class RunViewSet(viewsets.ModelViewSet):
         if not run.are_all_executions_finished(request):
             raise Exception("Run already has a currently running execution")
 
-        # create experiment
-        experiment = ExperimentModel()
         run_label = f"{run.root.root}/{run.number}" if run.root else run.name
-        experiment.experimentName = f"{run_label} execution number {run.executions.count() + 1}"
-        application_interface = request.airavata_client.getApplicationInterface(
-            request.authz_token, app_interface_id
+        application_interface = airavata_gateway.get_application_interface(
+            request, app_interface_id
         )
-        experiment.experimentInputs = application_interface.applicationInputs.copy()
-        experiment.experimentOutputs = application_interface.applicationOutputs.copy()
-        experiment.executionId = app_interface_id
         if run.experiment is not None:
             if run.experiment.airavata_project_id is None:
                 run.experiment.create_airavata_project(request)
                 run.experiment.save()
-            experiment.projectId = run.experiment.airavata_project_id
-        else:
-            experiment.projectId = run.airavata_project_id
-        experiment.gatewayId = settings.GATEWAY_ID
-        experiment.userName = request.user.username
-        #ucd = UserConfigurationDataModel()
-        #ucd.groupResourceProfileId = run.group_resource_profile_id
-        #ucd.shareExperimentPublicly=is_tutorial
-
-        #experiment.userConfigurationData = ucd
-        experiment.userConfigurationData = UserConfigurationDataModel(
-            groupResourceProfileId=run.group_resource_profile_id,
-            shareExperimentPublicly=is_tutorial,
-            computationalResourceScheduling=ComputationalResourceSchedulingModel(
-                resourceHostId=run.compute_resource_id,
-                totalCPUCount=run.core_count,
-                nodeCount=run.node_count,
-                wallTimeLimit=run.walltime_limit,
-                queueName=run.queue_name
-            )
+        experiment = airavata_gateway.create_experiment_model(
+            request,
+            run=run,
+            run_label=run_label,
+            app_interface_id=app_interface_id,
+            application_interface=application_interface,
+            is_tutorial=is_tutorial,
         )
-        #crs = ComputationalResourceSchedulingModel()
-        #crs.resourceHostId = run.compute_resource_id
-        #crs.totalCPUCount = run.core_count
-        #crs.nodeCount = run.node_count
-        #crs.wallTimeLimit = run.walltime_limit
-        #crs.queueName = run.queue_name
-        #experiment.userConfigurationData.computationalResourceScheduling = crs
 
-        for inp in experiment.experimentInputs:
+        for inp in experiment.experiment_inputs:
             if inp.name in input_values:
                 inp.value = input_values[inp.name]
-            elif inp.type in (DataType.URI, DataType.URI_COLLECTION) and not inp.value:
-                inp.isRequired = False
+            elif airavata_gateway.is_uri_type(inp.type) and not inp.value:
+                inp.is_required = False
 
         # Save experiment
-        experiment_id = request.airavata_client.createExperiment(
-            request.authz_token, settings.GATEWAY_ID, experiment
-        )
+        experiment_id = airavata_gateway.create_experiment(request, experiment)
         # launch experiment
-        experiment_util.launch(request, experiment_id)
+        airavata_gateway.launch_experiment(request, experiment_id)
 
         # add experiment to the run's executions
-        compute_resource = request.airavata_client.getComputeResource(
-            request.authz_token, run.compute_resource_id
+        compute_resource = airavata_gateway.get_compute_resource(
+            request, run.compute_resource_id
         )
         return run.executions.create(
             airavata_experiment_id=experiment_id,
-            resource_name=compute_resource.hostName,
+            resource_name=airavata_gateway.compute_resource_host_name(compute_resource),
         )
     @action(detail=True, methods=["PATCH"])
     def change_notification_settings(self, request, pk=None, *args, **kwargs):
@@ -601,16 +569,15 @@ class RunViewSet(viewsets.ModelViewSet):
 
         execution = run.latest_execution
 
-        experiment = request.airavata_client.getExperiment(
-            request.authz_token, execution.airavata_experiment_id
+        experiment = airavata_gateway.get_experiment(
+            request, execution.airavata_experiment_id
         )
+        del experiment.email_addresses[:]
         if run.is_email_notification_on:
-            experiment.emailAddresses = [request.user.email]
-        else:
-            experiment.emailAddresses = []
+            experiment.email_addresses.extend([request.user.email])
 
-        request.airavata_client.updateExperiment(
-            request.authz_token, execution.airavata_experiment_id, experiment
+        airavata_gateway.update_experiment(
+            request, execution.airavata_experiment_id, experiment
         )
 
         return Response(serializer.data)
@@ -631,17 +598,17 @@ class RunViewSet(viewsets.ModelViewSet):
         app_module_id = getattr(settings, "EPOLYSCAT", {}).get(
             "EPOLYSCAT_APPLICATION_ID", "ePolyScat_940ab1c9-4ceb-431c-8595-c6246a195442"
         )
-        all_app_interfaces = request.airavata_client.getAllApplicationInterfaces(
-            request.authz_token, settings.GATEWAY_ID
-        )
+        all_app_interfaces = airavata_gateway.get_all_application_interfaces(request)
         app_interfaces = []
         for app_interface in all_app_interfaces:
-            if not app_interface.applicationModules:
+            if not airavata_gateway.application_modules(app_interface):
                 continue
-            if app_module_id in app_interface.applicationModules:
+            if app_module_id in airavata_gateway.application_modules(app_interface):
                 app_interfaces.append(app_interface)
         if len(app_interfaces) == 1:
-            app_interface_id = app_interfaces[0].applicationInterfaceId
+            app_interface_id = airavata_gateway.application_interface_id(
+                app_interfaces[0]
+            )
         else:
             raise Exception(
                 f"Could not figure out the applicationInterfaceId for app module {app_module_id}"
@@ -1068,11 +1035,11 @@ def user_run_file_exists(request, run, filename):
     experiment_model = None
     for execution in run.executions.order_by("-created"):
         status_name = execution.get_airavata_experiment_status(request)
-        experiment_state = ExperimentState[status_name].value
-        if experiment_state == ExperimentState.COMPLETED:
+        experiment_state = airavata_gateway.experiment_state_value(status_name)
+        if experiment_state == airavata_gateway.experiment_completed_state():
             logger.debug(f"getExperiment({execution.airavata_experiment_id})")
-            experiment_model = request.airavata_client.getExperiment(
-                request.authz_token, execution.airavata_experiment_id
+            experiment_model = airavata_gateway.get_experiment(
+                request, execution.airavata_experiment_id
             )
             break
     if experiment_model is None:
@@ -1081,7 +1048,7 @@ def user_run_file_exists(request, run, filename):
     # Load the Modl_RunID file to find location of files
     # TODO: cache this information
     modl_runid_output = None
-    for output in experiment_model.experimentOutputs:
+    for output in airavata_gateway.experiment_outputs(experiment_model):
         if output.name == "Modl_RunID":
             modl_runid_output = output
     if modl_runid_output is None or not user_storage.exists(
@@ -1102,7 +1069,7 @@ def user_run_file_exists(request, run, filename):
     data_product_uri = user_storage.user_file_exists(
         request,
         os.path.join("ARCHIVE", model, run_id, filename),
-        experiment_id=experiment_model.experimentId,
+        experiment_id=airavata_gateway.experiment_id(experiment_model),
     )
     return data_product_uri
 
@@ -1127,13 +1094,13 @@ def get_run_output_data_product_uri(request, run: models.Run, data_type: str):
     else:
         return None
 
-    experiment_model: ExperimentModel = request.airavata_client.getExperiment(
-        request.authz_token, most_recent_execution.airavata_experiment_id
+    experiment_model = airavata_gateway.get_experiment(
+        request, most_recent_execution.airavata_experiment_id
     )
     # Find the output by data type
     output = None
-    for output in experiment_model.experimentOutputs:
-        output_type_name = DataType(output.type).name
+    for output in airavata_gateway.experiment_outputs(experiment_model):
+        output_type_name = airavata_gateway.data_type_name(output.type)
         if output_type_name == data_type:
             output = output
             break
@@ -1147,15 +1114,14 @@ def get_run_output_data_product_uri(request, run: models.Run, data_type: str):
             return None
     # otherwise, see if there is an intermediate output available
     else:
-        data_products = (
-            experiment_util.intermediate_output.get_intermediate_output_data_products(
-                request, experiment_model, output.name
-            )
+        data_products = airavata_gateway.get_intermediate_output_data_products(
+            request, experiment_model, output.name
         )
         if len(data_products) == 1 and user_storage.exists(
-            request, data_product=data_products[0]
+            request,
+            data_product_uri=airavata_gateway.data_product_uri(data_products[0]),
         ):
-            return data_products[0].productUri
+            return airavata_gateway.data_product_uri(data_products[0])
         else:
             return None
 
@@ -1843,12 +1809,12 @@ def user_run_file_exists(request, run, filename):
     experiment_model = None
     for execution in run.executions.order_by("-created"):
         status_name = execution.get_airavata_experiment_status(request)
-        experiment_state = ExperimentState[status_name].value
+        experiment_state = airavata_gateway.experiment_state_value(status_name)
         print(f"DEBUG: Execution {execution.airavata_experiment_id} status: {status_name}")
-        if experiment_state == ExperimentState.COMPLETED:
+        if experiment_state == airavata_gateway.experiment_completed_state():
             logger.debug(f"getExperiment({execution.airavata_experiment_id})")
-            experiment_model = request.airavata_client.getExperiment(
-                request.authz_token, execution.airavata_experiment_id
+            experiment_model = airavata_gateway.get_experiment(
+                request, execution.airavata_experiment_id
             )
             break
     if experiment_model is None:
@@ -1857,9 +1823,9 @@ def user_run_file_exists(request, run, filename):
 
     # Load the Modl_RunID file to find location of files
     # TODO: cache this information
-    print(f"DEBUG: Looking for Modl_RunID in {len(experiment_model.experimentOutputs)} experiment outputs")
+    print(f"DEBUG: Looking for Modl_RunID in {len(airavata_gateway.experiment_outputs(experiment_model))} experiment outputs")
     modl_runid_output = None
-    for output in experiment_model.experimentOutputs:
+    for output in airavata_gateway.experiment_outputs(experiment_model):
         if output.name == "Modl_RunID":
             modl_runid_output = output
             print(f"DEBUG: Found Modl_RunID output with URI: {output.value}")
@@ -1886,8 +1852,8 @@ def user_run_file_exists(request, run, filename):
     print(f"DEBUG: Parsed model: '{model}', run_id: '{run_id}'")
     
     try:
-        print(f"DEBUG: Using list_experiment_dir for experimen     t: '{experiment_model.experimentId}'")
-        directories, files = user_storage.list_experiment_dir(     request, experiment_model.experimentId)
+        print(f"DEBUG: Using list_experiment_dir for experimen     t: '{airavata_gateway.experiment_id(experiment_model)}'")
+        directories, files = user_storage.list_experiment_dir(     request, airavata_gateway.experiment_id(experiment_model))
         print(f"DEBUG: Found {len(directories)} directories an     d {len(files)} files in experiment directory")
  
         available_files = [file['name'] for file in files]
@@ -1911,7 +1877,7 @@ def user_run_file_exists(request, run, filename):
            data_product_uri = user_storage.user_file_exists(
                request,
                os.path.join("ARCHIVE", model, run_id, filename),
-               experiment_id=experiment_model.experimentId,
+               experiment_id=airavata_gateway.experiment_id(experiment_model),
            )
            return data_product_uri
         except Exception as fallback_e:
@@ -1928,13 +1894,13 @@ def get_run_output_data_product_uri(request, run: models.Run, data_type: str):
     else:
         return None
 
-    experiment_model: ExperimentModel = request.airavata_client.getExperiment(
-        request.authz_token, most_recent_execution.airavata_experiment_id
+    experiment_model = airavata_gateway.get_experiment(
+        request, most_recent_execution.airavata_experiment_id
     )
     # Find the output by data type
     output = None
-    for output in experiment_model.experimentOutputs:
-        output_type_name = DataType(output.type).name
+    for output in airavata_gateway.experiment_outputs(experiment_model):
+        output_type_name = airavata_gateway.data_type_name(output.type)
         if output_type_name == data_type:
             output = output
             break
@@ -1948,14 +1914,13 @@ def get_run_output_data_product_uri(request, run: models.Run, data_type: str):
             return None
     # otherwise, see if there is an intermediate output available
     else:
-        data_products = (
-            experiment_util.intermediate_output.get_intermediate_output_data_products(
-                request, experiment_model, output.name
-            )
+        data_products = airavata_gateway.get_intermediate_output_data_products(
+            request, experiment_model, output.name
         )
         if len(data_products) == 1 and user_storage.exists(
-            request, data_product=data_products[0]
+            request,
+            data_product_uri=airavata_gateway.data_product_uri(data_products[0]),
         ):
-            return data_products[0].productUri
+            return airavata_gateway.data_product_uri(data_products[0])
         else:
             return None

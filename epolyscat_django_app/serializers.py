@@ -4,15 +4,14 @@ import os
 from io import StringIO
 from urllib.parse import urlencode
 
-from airavata_django_portal_sdk import experiment_util, user_storage
-from airavata.model.workspace.ttypes import Project
+from airavata_django_portal_sdk import user_storage
 from django.db import transaction
 from django.db.models import Q
 from django.conf import settings
 from django.utils.text import get_valid_filename
 from rest_framework import reverse, serializers, validators
 
-from epolyscat_django_app import models
+from epolyscat_django_app import airavata_gateway, models
 
 logger = logging.getLogger(__name__)
 
@@ -110,31 +109,39 @@ class RunSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context["request"]
 
-        projects = request.airavata_client.getUserProjects(
-            request.authz_token,
-            settings.GATEWAY_ID,
-            request.user.username,
-            -1,
-            0
+        projects = airavata_gateway.get_user_projects(request)
+        epolyscat_project_choices = (
+            [
+                p for p in projects
+                if "EPOLYSCAT_app_project" in airavata_gateway.project_id(p)
+            ] or
+            [
+                p for p in projects
+                if "Default_Project" in airavata_gateway.project_id(p)
+            ] or
+            [
+                p for p in projects
+                if "Default" in airavata_gateway.project_id(p)
+            ] or
+            [
+                p for p in projects
+                if "default" in airavata_gateway.project_id(p)
+            ]
         )
-        epolyscat_project_choices = ([p for p in projects if "EPOLYSCAT_app_project" in p.projectID] or
-            [p for p in projects if "Default_Project" in p.projectID] or
-            [p for p in projects if "Default" in p.projectID] or
-            [p for p in projects if "default" in p.projectID])
 
         if len(epolyscat_project_choices) > 0:
-            airavata_project_id = epolyscat_project_choices[0].projectID
+            airavata_project_id = airavata_gateway.project_id(
+                epolyscat_project_choices[0]
+            )
         else:
-            new_project = Project(
-                owner=request.user.username,
-                gatewayId=settings.GATEWAY_ID,
-                name="EPOLYSCAT app project",
+            new_project = airavata_gateway.create_project_model(
+                request,
+                "EPOLYSCAT app project",
             )
 
-            airavata_project_id = request.airavata_client.createProject(
-                request.authz_token,
-                settings.GATEWAY_ID,
-                new_project
+            airavata_project_id = airavata_gateway.create_project(
+                request,
+                new_project,
             )
 
         # print(projects, [p for p in projects if p.projectID.startswith("Default_Project")])
@@ -330,24 +337,15 @@ class RunSerializer(serializers.ModelSerializer):
                 #     request, experiment, "bsr_prep.log"
                 # )
 
-                application_status = request.airavata_client.getExperimentStatus(
-                    request.authz_token, latest_execution.airavata_experiment_id
+                application_status = airavata_gateway.get_experiment_status(
+                    request,
+                    latest_execution.airavata_experiment_id,
                 )
 
                 if application_status is not None:
-                    state = application_status.state
-                    status = "CREATED" if state == 0 else (
-                        "VALIDATED" if state == 1 else
-                        "SCHEDULED"     if state == 2 else
-                        "LAUNCHED"      if state == 3 else
-                        "EXECUTING"     if state == 4 else
-                        "CANCELING"     if state == 5 else
-                        "CANCELED"      if state == 6 else
-                        "COMPLETED"     if state == 7 else
-                        "FAILED"
+                    return airavata_gateway.experiment_state_name(
+                        application_status.state
                     )
-
-                    return status
 
             return latest_execution.get_airavata_experiment_status(request)
 
@@ -363,29 +361,22 @@ class RunSerializer(serializers.ModelSerializer):
             latest_execution: models.RemoteExecution = run_instance.latest_execution
 
             try:
-                job_statuses = request.airavata_client.getJobStatuses(
-                    request.authz_token, latest_execution.airavata_experiment_id
+                job_statuses = airavata_gateway.get_job_statuses(
+                    request,
+                    latest_execution.airavata_experiment_id,
                 )
         
                 job_statuses_list = list(job_statuses.values());
             
                 if len(job_statuses_list) > 0:
                     # gets the most recent status
-                    job_statuses_list.sort(key=lambda status: status.timeOfStateChange, reverse=True)
-                    state = job_statuses_list[0].jobState
-
-                    status = "SUBMITTED"    if state == 0 else (
-                        "QUEUED"            if state == 1 else
-                        "ACTIVE"            if state == 2 else
-                        "COMPLETED"         if state == 3 else
-                        "CANCELED"          if state == 4 else
-                        "FAILED"            if state == 5 else
-                        "SUSPENDED"         if state == 6 else
-                        "UNKNOWN"           if state == 7 else
-                        "NON_CRITICAL_FAIL"     if state == 8 else "UNKNOWN_"
+                    job_statuses_list.sort(
+                        key=lambda status: status.time_of_state_change,
+                        reverse=True,
                     )
-
-                    return status
+                    return airavata_gateway.job_state_name(
+                        job_statuses_list[0].job_state
+                    )
                 else:
                     return "NO STATUS"
             except:
