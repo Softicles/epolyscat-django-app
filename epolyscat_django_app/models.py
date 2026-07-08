@@ -3,7 +3,7 @@ import re
 from typing import Union
 
 from django.db import models
-from airavata.model.workspace.ttypes import Project
+from airavata.model.workspace.ttypes import Project as AiravataProject
 from airavata.model.experiment.ttypes import ExperimentModel
 from airavata.model.status.ttypes import ExperimentState
 from airavata_django_portal_sdk import experiment_util, user_storage
@@ -34,7 +34,7 @@ class Project(models.Model):
         unique_together = ["name", "owner"]
 
     def create_airavata_project(self, request):
-        airavata_project = Project(
+        airavata_project = AiravataProject(
             owner=request.user.username,
             gatewayId=settings.GATEWAY_ID,
             name="Runs for experiment (epolyscat): " + self.name,
@@ -69,7 +69,7 @@ class Experiment(models.Model):
         unique_together = ["name", "owner"]
 
     def create_airavata_project(self, request):
-        airavata_project = Project(
+        airavata_project = AiravataProject(
             owner=request.user.username,
             gatewayId=settings.GATEWAY_ID,
             name="Runs for experiment (ePolyScat): " + self.name,

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from io import StringIO
 from urllib.parse import urlencode
@@ -12,6 +13,8 @@ from django.utils.text import get_valid_filename
 from rest_framework import reverse, serializers, validators
 
 from epolyscat_django_app import models
+
+logger = logging.getLogger(__name__)
 
 class FileSerializer(serializers.ModelSerializer):
     class Meta:
@@ -48,11 +51,18 @@ class UniqueToUserValidator(validators.UniqueValidator):
         return super().filter_queryset(value, queryset, field_name)
 
 
+class ExperimentIdRelatedField(serializers.PrimaryKeyRelatedField):
+    def get_queryset(self):
+        request = self.context["request"]
+        return models.Experiment.objects.filter(owner=request.user, deleted=False)
+
+
 class RunSerializer(serializers.ModelSerializer):
     inputs = serializers.SerializerMethodField()
     executions = serializers.SlugRelatedField(
         slug_field="airavata_experiment_id", read_only=True, many=True
-    )   
+    )
+    experiment = ExperimentIdRelatedField(required=False, allow_null=True)
 
     #root = serializers.CharField(max_length=100, required=False)
     #directedit = serializers.CharField(
@@ -83,8 +93,9 @@ class RunSerializer(serializers.ModelSerializer):
             "group_resource_profile_id", "compute_resource_id",
             "queue_name", "core_count", "node_count", "walltime_limit", "total_physical_memory",
             "inputs", "executions", "status", "job_status", "is_tutorial", "job_id", "resource",
+            "experiment",
             #"directedit", "inpc_download_url", "cancelable","can_resubmit", "input_table", "root",
-            #"number", "root", "experiment", "resource", #"resource_short", "job_id", 
+            #"number", "root", "resource", #"resource_short", "job_id",
         )
         #read_only_fields = ("deleted", "number", "experiment", "name")
 
@@ -490,7 +501,6 @@ class ExperimentSerializer(serializers.ModelSerializer):
         required=True,
         validators=[UniqueToUserValidator(models.Experiment.objects.all(), "owner")],
     )
-    root = serializers.SlugRelatedField(slug_field="root", read_only=True)
 
     class Meta:
         model = models.Experiment
@@ -505,9 +515,8 @@ class ExperimentSerializer(serializers.ModelSerializer):
             "airavata_project_id",
             "run_count",
             "active_run_count",
-            "root",
         )
-        read_only_fields = ("deleted", "airavata_project_id", "root")
+        read_only_fields = ("deleted", "airavata_project_id")
 
     def get_run_count(self, obj):
         return obj.runs.count()
@@ -518,16 +527,20 @@ class ExperimentSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         request = self.context["request"]
-        name = get_valid_filename(validated_data.pop("name"))
-        root = models.RunsRoot.objects.create(root=name, owner=request.user)
         experiment = models.Experiment.objects.create(
             **validated_data,
             owner=request.user,
-            root=root,
-            name=name,
         )
-        experiment.create_airavata_project(request)
-        experiment.save()
+        try:
+            experiment.create_airavata_project(request)
+            experiment.save()
+        except Exception:
+            # Gateway connectivity is not required to create an experiment;
+            # airavata_project_id stays null and can be provisioned later.
+            logger.warning(
+                "Failed to create Airavata project for experiment %s",
+                experiment.name, exc_info=True,
+            )
         return experiment
 
     @transaction.atomic
@@ -539,8 +552,14 @@ class ExperimentSerializer(serializers.ModelSerializer):
         experiment = instance
         # For data migration, create an airavata project if there isn't one yet
         if experiment.airavata_project_id is None:
-            experiment.create_airavata_project(request)
-            experiment.save()
+            try:
+                experiment.create_airavata_project(request)
+                experiment.save()
+            except Exception:
+                logger.warning(
+                    "Failed to create Airavata project for experiment %s",
+                    experiment.name, exc_info=True,
+                )
         return experiment
 
 
