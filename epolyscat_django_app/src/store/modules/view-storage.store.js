@@ -1,8 +1,13 @@
 import {ViewService} from "@/service/epolyscat-service";
 
 const state = {
-    //viewListMap: {},
-    //viewListPaginationMap: {},
+    // Must be declared here so they are reactive and never `undefined`.
+    // getViewsPagination reads viewListPaginationMap during the very first
+    // render (before fetchViews resolves); leaving it undefined throws a
+    // TypeError that aborts the Views page render (list shows only on the
+    // second visit, once a prior fetch has lazily created the property).
+    viewListMap: {},
+    viewListPaginationMap: {},
     viewMap: {}
 }
 
@@ -185,7 +190,10 @@ const getters = {
             if (viewListPagination) {
                 return viewListPagination;
             } else {
-                return null;
+                // Return a safe default (not null) so the template's
+                // `viewsPagination.total` never dereferences null before
+                // fetchViews has populated the pagination map.
+                return {page, pageSize, total: 0};
             }
         }
     },
