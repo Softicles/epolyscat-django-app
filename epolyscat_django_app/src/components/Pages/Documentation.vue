@@ -51,25 +51,26 @@
       -->
       <!-- iframe :src="https://epolyscat.droppages.com/front" frameborder="0" width="100%" height="500px"></iframe -->
     </div>
-  </div>
-  <div>
-    <iframe :src="https://epolyscat.droppages.com/IntroREADME2/" ></iframe>
+    <div class="px-5 pb-5">
+      <iframe
+        :src="embeddedUrl"
+        title="ePolyScat documentation"
+        frameborder="0"
+        width="100%"
+        height="500px"
+      ></iframe>
+    </div>
   </div>
 </template>
 
 <script>
-import ExperimentCard from "@/components/block/ExperimentCard";
-import store from "@/store";
-import { ExperimentService } from "@/service/epolyscat-service";
-
-import { ref, onMounted } from 'vue';
-
 export default {
+  name: 'Documentation',
   data() {
-        return {
-          embeddedUrl: 'https://www.example.com' // Initial URL
-        };
-      }
+    return {
+      embeddedUrl: 'https://epolyscat.droppages.com/IntroREADME2/'
+    };
+  }
 };
   /*
   },

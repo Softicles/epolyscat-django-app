@@ -190,6 +190,7 @@ import Badge from "../block/Badge.vue";
 import store from "@/store";
 import router from '@/router';
 import { eventBus } from "@/event-bus";
+import { describeApiError } from "@/service/epolyscat-service";
 import LoadingOverlay from "@/components/overlay/LoadingOverlay";
 import { descriptions, tableObjects } from "@/fileData";
 
@@ -366,6 +367,22 @@ export default {
 
             return executingStates.indexOf(this.run.jobStatus.toLocaleUpperCase()) != -1;
     },
+    experimentId() {
+      return this.$route.query.experimentId;
+    },
+    viewId() {
+      return this.$route.query.viewId;
+    },
+    experiment() {
+      return this.$store.getters["experiment/getExperiment"]({
+        experimentId: this.experimentId
+      });
+    },
+    view() {
+      return this.$store.getters["view/getView"]({
+        viewId: this.viewId
+      });
+    },
 
 
 /*
@@ -393,30 +410,6 @@ export default {
 //
 //      return _link;
 //    },
-    experimentId() {
-      return this.$route.query.experimentId;
-    },
-    viewId() {
-      return this.$route.query.viewId;
-    },
-    runId() {
-      return this.$route.params.runId;
-    },
-    run() {
-      return this.$store.getters["run/getRun"]({
-        runId: this.runId
-      });
-    },
-    experiment() {
-      return this.$store.getters["experiment/getExperiment"]({
-        experimentId: this.experimentId
-      });
-    },
-    view() {
-      return this.$store.getters["view/getView"]({
-        viewId: this.viewId
-      });
-    },
     epolyscatApplicationModuleId() {
       return this.$store.getters["settings/epolyscatApplicationModuleId"];
     },
@@ -460,11 +453,25 @@ export default {
 
             // console.log("the run:", {...this.run})
       },
+      // Populates the store maps the experiment/view breadcrumbs read from.
+      // Both are cosmetic, so a failure must not toast or block the run.
+      fetchBreadcrumbData() {
+            if (this.experimentId) {
+                this.$store.dispatch("experiment/fetchExperiment", { experimentId: this.experimentId })
+                    .catch(() => {});
+            }
+
+            if (this.viewId) {
+                this.$store.dispatch("view/fetchView", { viewId: this.viewId })
+                    .catch(() => {});
+            }
+      },
       async fetchURLData() {
             if ("viewId" in this.$route.query) {
                 this.viewIds = [this.$route.query.viewId];
             } else if ("withOutputsFrom" in this.$route.query) {
-                const outputsRunId = parseInt(this.$route.query.withOutputsFrom);
+                // Run ids are Airavata experiment ids (strings)
+                const outputsRunId = this.$route.query.withOutputsFrom;
 
                 this.$store.commit("loading/START", { key: this.loadingKey, message: "Fetching Outputs" });
 
@@ -482,7 +489,8 @@ export default {
                     });
                 }
             } else if ("clonedFrom" in this.$route.query) {
-                const clonedRunId = parseInt(this.$route.query.clonedFrom);
+                // Run ids are Airavata experiment ids (strings)
+                const clonedRunId = this.$route.query.clonedFrom;
 
                 this.$store.commit("loading/START", { key: this.loadingKey, message: "Fetching Cloned Run" });
 
@@ -551,6 +559,10 @@ export default {
       async submitRun() {
             await this.saveRun(false);
 
+            // saveRun swallows create/update failures (it emits its own error
+            // toast); without a real run id there is nothing to submit.
+            if (this.runId == null || this.runId === -1) return;
+
             this.$store.commit("loading/START", { key: this.loadingKey, message: "Submitting Run" });
 
             try {
@@ -558,7 +570,14 @@ export default {
                     runId: this.runId
                 });
             } catch (error) {
-                eventBus.$emit("error", { name: `Error while trying to submit the run`, error });
+                // The run was saved but not submitted: surface the server's
+                // explanation and stay on the page so it can be corrected.
+                eventBus.$emit("error", {
+                    name: `Could not submit the run: ${describeApiError(error)}`,
+                    error
+                });
+                this.$store.commit("loading/STOP", { key: this.loadingKey, message: "Submitting Run" });
+                return;
             }
             if (!this.userLeftPage)
                 this.$refs.pathSelecter.selectDefaultPathFrom(2);
@@ -822,6 +841,7 @@ export default {
 
     this.fetchRun();
     this.fetchURLData();
+    this.fetchBreadcrumbData();
 /*
     this.plotables = null;
     this.processingPlotables = true;

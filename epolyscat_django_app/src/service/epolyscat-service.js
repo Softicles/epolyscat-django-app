@@ -1,16 +1,12 @@
 import { fileMetadata } from "@/fileData";
 import axios from "axios";
-import http from "http";
-import https from "https";
-
-const httpAgent = new http.Agent({keepAlive: true});
-const httpsAgent = new https.Agent({keepAlive: true});
 
 const {utils} = AiravataAPI;
 
+// No httpAgent/httpsAgent: axios resolves to its XHR adapter in the browser,
+// which ignores them. Importing node's http/https only forced webpack to
+// bundle core-module polyfills, which webpack 5 no longer provides.
 const axiosInstance = axios.create({
-    httpAgent,
-    httpsAgent,
     baseURL: "/",
     withCredentials: false,
     headers: {
@@ -23,6 +19,23 @@ const axiosInstance = axios.create({
 })
 
 const appBaseUrl = "/epolyscat_django_app/api/";
+
+// Human-readable message from an axios error: prefers the API's JSON error
+// body (DRF style — {"detail": "..."} or {"field": ["msg", ...]}) over the
+// generic "Request failed with status code NNN".
+export function describeApiError(error) {
+    const data = error && error.response && error.response.data;
+    if (data) {
+        if (typeof data === "string") return data;
+        if (data.detail) return String(data.detail);
+        const parts = Object.keys(data).map(function (key) {
+            const value = data[key];
+            return key + ": " + (Array.isArray(value) ? value.join(", ") : String(value));
+        });
+        if (parts.length > 0) return parts.join("; ");
+    }
+    return error && error.message ? error.message : String(error);
+}
 
 export const InputService = {
     async fetchApplicationInputs() {
@@ -704,10 +717,40 @@ export const PlotService = {
     },
 }
 export const DirectoryService = {
+    // The rebuilt portal's user-storage listing is snake_case with epoch-millis
+    // strings (created_time, data_product_uri, ...); the components read the old
+    // camelCase names. Normalize additively so both spellings work.
+    normalizeEntry(entry) {
+        const pick = function () {
+            for (let i = 0; i < arguments.length; i++) {
+                if (arguments[i] !== undefined && arguments[i] !== null) return arguments[i];
+            }
+            return null;
+        };
+        const toMillis = (value) => {
+            const n = Number(value);
+            return Number.isFinite(n) && n > 0 ? n : null;
+        };
+        const modified = toMillis(entry.modified_time);
+        const created = pick(toMillis(entry.created_time), modified);
+        return {
+            ...entry,
+            size: Number(pick(entry.size, 0)),
+            createdTime: pick(entry.createdTime, created),
+            modifiedTime: pick(entry.modifiedTime, modified, created),
+            userHasWriteAccess: pick(entry.userHasWriteAccess, entry.user_has_write_access),
+            dataProductURI: pick(entry.dataProductURI, entry.data_product_uri),
+            "data-product-uri": pick(entry["data-product-uri"], entry.data_product_uri),
+        };
+    },
     async fetchDirectories(path = "") {
-        const { data } = await axiosInstance.get(`/api/user-storage/${path}`);
+        const { data } = await axiosInstance.get(`/api/user-storage/~/${path}`);
 
-        return data;
+        return {
+            ...data,
+            directories: (data.directories || []).map(this.normalizeEntry),
+            files: (data.files || []).map(this.normalizeEntry),
+        };
     },
 }
 export const SettingsService = {
@@ -809,14 +852,11 @@ export const RunService = {
 
     async fetchRun({runId = null} = {}) {
         const {data} = await axiosInstance.get(`/epolyscat_django_app/api/runs/${runId}`);
-        const _run = this.encodeObj(data);
-
-        if (!_run.inputTable) {
-            const _clone = await this.cloneRun({runId});
-            _run.inputTable = _clone.inputTable;
-        }
-
-        return _run;
+        // No input_table fallback: runs are stored server-side as Airavata
+        // experiments, which have no such field, and the clone endpoint
+        // re-serializes the same run — so it could only ever echo back the
+        // undefined we already have.
+        return this.encodeObj(data);
     },
     //async cloneRun({runId = null} = {}) {
     //    const {data} = await axiosInstance.post(`/epolyscat_django_app/api/runs/${runId}/new/`);

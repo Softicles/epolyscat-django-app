@@ -4,10 +4,11 @@ import os
 BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 SECRET_KEY = "abc123"
+GATEWAY_ID = "test-gateway"
 INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    "epolyscat_django_app.apps.TrecxDjangoAppConfig",
+    "epolyscat_django_app.apps.epolyscatDjangoAppConfig",
 ]
 DATABASES = {
     'default': {

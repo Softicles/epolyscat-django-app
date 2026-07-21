@@ -21,17 +21,22 @@
 {% endblock content %}
 
 {% block css %}
-{% render_bundle 'chunk-vendors' 'css' 'EPOLYSCAT_DJANGO_APP' %}
+{% comment %}
+The 'app' entrypoint already includes chunk-vendors, which webpack-bundle-tracker
+3 groups by entrypoint rather than emitting as a separately addressable bundle.
+{% endcomment %}
 {% render_bundle 'app' 'css' 'EPOLYSCAT_DJANGO_APP' %}
-<link type="text/css" href="{% static 'common/dist/CommonUI.css' %}" rel="stylesheet">
 {% endblock css %}
 
 {% block scripts %}
 <!-- Load the AiravataAPI JavaScript SDK (optional) -->
 <script src="{% static 'django_airavata_api/dist/airavata-api.js' %}"></script>
-<!-- <script src="{% static 'django_airavata_workspace/wc/adpf.chunk-vendors.js' %}"></script> -->
-<script src="{% static 'django_airavata_workspace/wc/adpf.min.js' %}"></script>
-<script src="{% static 'common/dist/CommonUI.umd.min.js' %}"></script>
+<!-- adpf web components (adpf-group-resource-profile-selector etc.), vendored
+     from the pre-rebuild workspace build; the current portal no longer ships them.
+     adpf-compat.js must load first: it aliases the rebuilt portal's snake_case
+     API JSON to the camelCase names the pre-rebuild components read. -->
+<script src="{% static 'epolyscat_django_app/wc/adpf-compat.js' %}"></script>
+<script src="{% static 'epolyscat_django_app/wc/adpf.min.js' %}"></script>
 <script>
     const {models, services, session, utils} = AiravataAPI;
 
@@ -56,6 +61,6 @@
     // https://github.com/apache/airavata-django-portal/blob/master/django_airavata/apps/api/static/django_airavata_api/js/index.js
 </script>
 {{ block.super }}
-{% render_bundle 'chunk-vendors' 'js' 'EPOLYSCAT_DJANGO_APP' %}
+{# 'app' emits chunk-vendors.js before app.js — see the css block above. #}
 {% render_bundle 'app' 'js' 'EPOLYSCAT_DJANGO_APP' %}
 {% endblock scripts %}

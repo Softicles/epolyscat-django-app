@@ -6,10 +6,51 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 logger = logging.getLogger(__name__)
 
 
-class Settings:
-    WEBPACK_LOADER = {
-        "EPOLYSCAT_DJANGO_APP": {
-            "BUNDLE_DIR_NAME": "epolyscat_django_app/dashboard/dist",
+# Database alias for the app's private SQLite database. The host portal has no
+# default database (django.db.backends.dummy), so this app brings its own and
+# routes its models there via epolyscat_django_app.db_router.EPolyScatDBRouter.
+DB_ALIAS = "epolyscat"
+
+
+class epolyscatDjangoAppConfig(AppConfig):
+    name = "epolyscat_django_app"
+    label = name
+    verbose_name = "Epolyscat Django App"
+    url_home = "epolyscat_django_app:home"
+    fa_icon_class = "fa-atom"
+    default_auto_field = "django.db.models.BigAutoField"
+    SCRIPTS = os.path.join(BASE_DIR, "ePolyScat", "SCRIPTS")
+
+    def merge_settings(self, settings_module):
+        """Called by the portal's dynamic-app loader (commons.dynamic_apps).
+
+        Registers the app-private SQLite database and its router. The portal
+        itself is database-less; all of this app's Run/Input/File/... models
+        live in this SQLite file. Override the location with EPOLYSCAT_DB_PATH
+        in settings_local.py.
+        """
+        if "webpack_loader" not in settings_module.INSTALLED_APPS:
+            settings_module.INSTALLED_APPS.append("webpack_loader")
+        db_path = getattr(
+            settings_module,
+            "EPOLYSCAT_DB_PATH",
+            os.path.join(settings_module.BASE_DIR, "epolyscat.sqlite3"),
+        )
+        settings_module.DATABASES[DB_ALIAS] = {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": db_path,
+        }
+        routers = list(getattr(settings_module, "DATABASE_ROUTERS", []))
+        router_path = "epolyscat_django_app.db_router.EPolyScatDBRouter"
+        if router_path not in routers:
+            routers.append(router_path)
+        settings_module.DATABASE_ROUTERS = routers
+        migration_modules = dict(getattr(settings_module, "MIGRATION_MODULES", {}))
+        migration_modules.setdefault("epolyscat_django_app", None)
+        settings_module.MIGRATION_MODULES = migration_modules
+        webpack_loader = dict(getattr(settings_module, "WEBPACK_LOADER", {}))
+        webpack_loader["EPOLYSCAT_DJANGO_APP"] = {
+            "BUNDLE_DIR_NAME": "epolyscat_django_app/dashboard/dist/",
             "STATS_FILE": os.path.join(
                 BASE_DIR,
                 "static",
@@ -19,18 +60,14 @@ class Settings:
                 "webpack-stats.json",
             ),
         }
-    }
-
-
-class epolyscatDjangoAppConfig(AppConfig):
-    name = "epolyscat_django_app"
-    label = name
-    verbose_name = "Epolyscat Django App"
-    url_home = "epolyscat_django_app:home"
-    fa_icon_class = "fa-atom"
-    settings = Settings()
-    default_auto_field = "django.db.models.BigAutoField"
-    SCRIPTS = os.path.join(BASE_DIR, "ePolyScat", "SCRIPTS")
+        settings_module.WEBPACK_LOADER = webpack_loader
+        rest_framework = dict(getattr(settings_module, "REST_FRAMEWORK", {}))
+        rest_framework.setdefault(
+            "DEFAULT_AUTHENTICATION_CLASSES",
+            ["epolyscat_django_app.drf_auth.PortalRequestUserAuthentication"],
+        )
+        rest_framework.setdefault("UNAUTHENTICATED_USER", None)
+        settings_module.REST_FRAMEWORK = rest_framework
 
     APPLICATION_SETTINGS = {
         "EPOLYSCAT_DJANGO_APP": {
@@ -228,7 +265,7 @@ class epolyscatDjangoAppConfig(AppConfig):
                     ]
                 },
             ],
-            "MASTER_LINP": os.path.join(BASE_DIR, "data", "eployscat", "linp"),
+            "MASTER_LINP": os.path.join(BASE_DIR, "data", "epolyscat", "linp"),
             "FILE_PLOTABLE": {
                 "spec_total": "energy-differential spectrum",
                 "spec_partial": "partial-wave spectrum",

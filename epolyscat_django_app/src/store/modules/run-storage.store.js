@@ -60,7 +60,7 @@ const actions = {
         let run;
 
         try {
-            run = await RunService.fetchRun(runId);
+            run = await RunService.fetchRun({ runId });
         } catch (error) {
             if (getters["getRun"](runId) != undefined)
                 run = getters["getRun"](runId)
@@ -92,7 +92,7 @@ const actions = {
         let run;
 
         try {
-            run = getters["getRun"](runId) || await dispatch("fetchRun");
+            run = getters["getRun"](runId) || await dispatch("fetchRun", { runId });
             run.inputs.length; // ensures that run is not undefined
         } catch (error) {
             throw new Error(`Error trying to find run with id: ${runId}, with error message: ${error}`);
@@ -132,7 +132,7 @@ const actions = {
         console.log("Path being gotten: ", path);
 
         try {
-            run = getters["getRun"](runId) || await dispatch("fetchRun");
+            run = getters["getRun"](runId) || await dispatch("fetchRun", { runId });
             run.inputs.length; // ensures that run is not undefined
         } catch (error) {
             throw new Error(`Error trying to find run with id: ${runId}, with error message: ${error}`);

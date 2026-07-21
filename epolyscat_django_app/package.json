@@ -4,7 +4,8 @@
     "private": true,
     "scripts": {
         "serve": "vue-cli-service serve",
-        "build": "vue-cli-service build",
+        "_comment_build": "--no-module: emit one browserslist-transpiled bundle instead of Vue CLI 5's default modern+legacy pair. django-webpack-loader renders a single <script>, so the modern half would ship untranspiled code to old browsers.",
+        "build": "vue-cli-service build --no-module",
         "lint": "vue-cli-service lint"
     },
     "dependencies": {
@@ -26,16 +27,17 @@
         "vuex-persistedstate": "^3.0.1"
     },
     "devDependencies": {
-        "@vue/cli-plugin-babel": "^3.1.1",
-        "@vue/cli-plugin-eslint": "^3.1.5",
-        "@vue/cli-service": "^3.7.0",
-        "babel-eslint": "^10.1.0",
-        "eslint": "^5.16.0",
-        "eslint-plugin-vue": "^5.2.3",
+        "@babel/core": "^7.24.0",
+        "@babel/eslint-parser": "^7.24.0",
+        "@vue/cli-plugin-babel": "^5.0.8",
+        "@vue/cli-plugin-eslint": "^5.0.8",
+        "@vue/cli-service": "^5.0.8",
+        "eslint": "^8.57.0",
+        "eslint-plugin-vue": "^9.23.0",
         "sass": "^1.54.5",
-        "sass-loader": "^10",
+        "sass-loader": "^13.3.0",
         "vue-template-compiler": "^2.6.10",
-        "webpack-bundle-tracker": "^0.4.2-beta"
+        "webpack-bundle-tracker": "^3.2.4"
     },
     "eslintConfig": {
         "root": true,
@@ -48,7 +50,7 @@
         ],
         "rules": {},
         "parserOptions": {
-            "parser": "babel-eslint"
+            "parser": "@babel/eslint-parser"
         },
         "globals": {
             "AiravataAPI": "readonly"

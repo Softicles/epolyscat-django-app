@@ -19,7 +19,8 @@
                         <b-icon icon="file-earmark-check" v-if="button.checked" />
                         <b-icon icon="file-earmark-plus"     v-else />
                     </template>
-                    <a v-if="button.delete" @click="button.delete()">
+                    <!-- bracket access: Vue's template check flags a bare `.delete(` as a unary operator -->
+                    <a v-if="button.delete" @click="button['delete']()">
                         <b-icon icon="trash" size="sm" />
                     </a>
                 </label>

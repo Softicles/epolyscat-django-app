@@ -44,6 +44,7 @@
                             <b-button variant="light" :href="href" @click="navigate">New Run</b-button>
                         </router-link>
                     </div>
+                </div>
 
 
 
@@ -128,8 +129,8 @@
                                     v-b-tooltip.hover title="Delete"
                                 ><b-icon icon="trash-fill" /></b-button>
                             </template>
-                            <!-- View / tutorial contexts: full action set -->
                             <template v-else>
+                                <!-- View / tutorial contexts: full action set -->
                                 <b-button
                                     v-if="view != null" variant="link" size="sm" @click="removeFromView([item])"
                                     v-b-tooltip.hover title="Remove from view"
@@ -261,6 +262,7 @@
 -->
 
       </div>
+      </div>
       <multipane-resizer v-if="isCompareEnabled"/>
       <div class="h-100 m-1" v-if="isCompareEnabled" style="overflow-y: scroll;">
            <ComparePlots :selectedRuns="selected"/>
@@ -273,7 +275,7 @@
 <script>
 import store from "@/store";
 //import TableOverlayInfo from "@/components/overlay/table-overlay-info";
-import {RunService, ViewService} from "@/service/epolyscat-service";
+import {RunService, ViewService, describeApiError} from "@/service/epolyscat-service";
 //import ButtonOverlay from "@/components/overlay/button-overlay";
 import {Multipane, MultipaneResizer} from 'vue-multipane';
 //import PostProcessing from "@/components/block/PostProcessing";
@@ -635,7 +637,7 @@ export default {
                         runId: run.id
                  });
            } catch (error) {
-                    eventBus.$emit("error", { name: `Error while trying to submit the run`, error });
+                    eventBus.$emit("error", { name: `Could not submit "${run.name}": ${describeApiError(error)}`, error });
            }
 
            this.$store.commit("loading/STOP", { key: this.loadingOverlayName, message: `Submitting "${run.name}"` });
@@ -648,7 +650,7 @@ export default {
                         runId: run.id
                     });
                 } catch (error) {
-                    eventBus.$emit("error", { name: `Error while trying to submit the run`, error });
+                    eventBus.$emit("error", { name: `Could not resubmit "${run.name}": ${describeApiError(error)}`, error });
                 }
 
                 this.$store.commit("loading/STOP", { key: this.loadingOverlayName, message: `Resubmitting "${run.name}"` });

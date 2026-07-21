@@ -7,16 +7,31 @@ module.exports = {
   // baseUrl: "http://0.0.0.0:8080/",
   outputDir: './static/epolyscat_django_app/dashboard/dist',
 
+  // Keep lint findings non-fatal, as they were under Vue CLI 3. The stricter
+  // eslint 8 / eslint-plugin-vue 9 defaults would otherwise fail the build on
+  // pre-existing issues that are unrelated to the build toolchain.
+  lintOnSave: 'warning',
+
+  // webpack-dev-server v4 config. The old chainWebpack devServer chain
+  // (public/hotOnly/https/disableHostCheck) was removed in v4.
   devServer: {
-    disableHostCheck: true,
+    host: '0.0.0.0',
+    port: 9000,
+    hot: 'only',
+    allowedHosts: 'all',
+    server: 'http',
+    headers: {"Access-Control-Allow-Origin": "*"},
+    client: {
+      webSocketURL: 'ws://0.0.0.0:9000/ws',
+    },
+    static: {
+      watch: {poll: 1000},
+    },
   },
   css: {
     loaderOptions: {
-      postcss: {
-        config: {
-          path: __dirname,
-        },
-      },
+      // postcss config is picked up from the "postcss" key in package.json;
+      // postcss-loader 6+ no longer accepts an explicit config path.
       sass: {
         sassOptions: {
           // Turn off deprecation warnings for sass dependencies
@@ -57,20 +72,16 @@ module.exports = {
 
   chainWebpack: config => {
 
+    // webpack-bundle-tracker 1.0+ splits the old single `filename` path into
+    // a directory (`path`) plus a bare `filename`.
     config
       .plugin('BundleTracker')
-      .use(BundleTracker, [{filename: './static/epolyscat_django_app/dashboard/dist/webpack-stats.json'}]);
+      .use(BundleTracker, [{
+        path: './static/epolyscat_django_app/dashboard/dist',
+        filename: 'webpack-stats.json',
+      }]);
 
     config.resolve.alias
       .set('__STATIC__', 'static');
-
-    config.devServer
-      .public('http://0.0.0.0:9000')
-      .host('0.0.0.0')
-      .port(9000)
-      .hotOnly(true)
-      .watchOptions({poll: 1000})
-      .https(false)
-      .headers({"Access-Control-Allow-Origin": ["\\*"]});
   },
 };

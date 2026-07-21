@@ -119,7 +119,8 @@
 </template>
 
 <script>
-import {RunService} from "@/service/epolyscat-service";
+import {RunService, describeApiError} from "@/service/epolyscat-service";
+import {eventBus} from "@/event-bus";
 import store from "@/store";
 import ButtonOverlay from "@/components/overlay/button-overlay";
 import RunViewableEditor from "@/components/block/RunViewableEditor";
@@ -261,10 +262,20 @@ export default {
           totalPhysicalMemory: this.totalPhysicalMemory
         };
 
-        if (this.run.canSubmit) {
-          await RunService.submitRun(resubmitRunPayload);
-        } else {
-          await RunService.resubmitRun(resubmitRunPayload);
+        try {
+          if (this.run.canSubmit) {
+            await RunService.submitRun(resubmitRunPayload);
+          } else {
+            await RunService.resubmitRun(resubmitRunPayload);
+          }
+        } catch (error) {
+          // Stay on the form so the values can be corrected.
+          eventBus.$emit("error", {
+            name: `Could not submit the run: ${describeApiError(error)}`,
+            error
+          });
+          this.processing = false;
+          return;
         }
 
         this.$router.history.push(this.redirectLink(this.run));

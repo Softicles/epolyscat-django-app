@@ -1,112 +1,39 @@
+"""Local metadata for the ePolyScat app.
+
+Run and experiment *data* is stored server-side in Airavata, using the gRPC
+schemas directly: a run is an ``ExperimentModel`` (name, description, owner,
+inputs, scheduling, statuses, jobs) and the app's run-grouping "experiment"
+is an Airavata ``Project``. See ``run_store`` for the facade.
+
+The tables kept here hold only UI state that has no server-side schema:
+
+- ``View``: named collections of runs (plus the unsubmitted/selected/tutorial
+  pseudo-collections).
+- ``RunExtras``: a thin pointer row per Airavata experiment — view
+  membership, a soft-delete tombstone (launched experiments cannot be deleted
+  server-side), and the resubmission chain (each resubmit is a cloned
+  Airavata experiment).
+- ``ProjectExtras``: marks which Airavata projects are ePolyScat run-grouping
+  experiments, with a soft-delete tombstone.
+- ``PlotParameters``: plot parameter history.
+
+No science data lives in these tables.
+"""
+
+import json
 import logging
-import re
-from typing import Union
 
 from django.db import models
-from airavata_django_portal_sdk import user_storage
-from django.conf import settings
 from django.db.models import Q
 
-from epolyscat_django_app import airavata_gateway
-
 logger = logging.getLogger(__name__)
-
-# Create your models here.
-class Project(models.Model):
-    name = models.CharField(max_length=255)
-    description = models.CharField(max_length=4000)
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True,
-        related_name="epolyscat_project_owner"
-    )
-    created = models.DateTimeField(auto_now_add=True)
-    updated = models.DateTimeField(auto_now=True)
-    deleted = models.BooleanField(default=False)
-    # Experiments and Runs can be shared by sharing the Airavata Project that
-    # they are associated with
-    airavata_project_id = models.CharField(max_length=255, unique=True, null=True)
-    # root = models.OneToOneField(
-    #     "RunsRoot", on_delete=models.CASCADE, related_name="experiment"
-    # )
-    
-    class Meta:
-        unique_together = ["name", "owner"]
-
-    def create_airavata_project(self, request):
-        airavata_project = airavata_gateway.create_project_model(
-            request,
-            "Runs for experiment (epolyscat): " + self.name,
-        )
-        airavata_project_id = airavata_gateway.create_project(request, airavata_project)
-        self.airavata_project_id = airavata_project_id
-
-    def __str__(self):
-        return self.name
-
-
-class Experiment(models.Model):
-    name = models.CharField(max_length=255)
-    description = models.CharField(max_length=4000)
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        null=True,
-        related_name="epolyscat_experiments"
-    )
-    created = models.DateTimeField(auto_now_add=True)
-    updated = models.DateTimeField(auto_now=True)
-    deleted = models.BooleanField(default=False)
-    airavata_project_id = models.CharField(max_length=255, unique=True, null=True)
-    #root = models.OneToOneField(
-    #    "RunsRoot", on_delete=models.CASCADE, related_name="experiment"
-    #)
-
-    class Meta:
-        unique_together = ["name", "owner"]
-
-    def create_airavata_project(self, request):
-        airavata_project = airavata_gateway.create_project_model(
-            request,
-            "Runs for experiment (ePolyScat): " + self.name,
-        )
-        airavata_project_id = airavata_gateway.create_project(request, airavata_project)
-        self.airavata_project_id = airavata_project_id
-
-    def __str__(self):
-        return self.name
-
-
-class RunsRoot(models.Model):
-    root = models.CharField(max_length=100)
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        null=True,
-        related_name="epolyscat_runsroots"
-    )
-    created = models.DateTimeField(auto_now_add=True)
-    updated = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        unique_together = ["root", "owner"]
-
-    def get_next_run_number(self):
-        max_number = max(
-            map(lambda r: int(r["number"]), self.runs.values("number")), default=0
-        )
-        return f"{max_number+1:04}"
-
-    def __str__(self):
-        return self.root
 
 
 class View(models.Model):
     name = models.CharField(max_length=255)
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        null=True,
-        related_name="epolyscat_views"
+    owner = models.CharField(
+        # Keycloak username; the portal has no Django User model.
+        max_length=255, null=True
     )
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
@@ -124,313 +51,90 @@ class View(models.Model):
 
     @property
     def is_tutorial(self):
-        return Run.check_is_tutorial(self.id)
-        
-        #return self.name == "Tutorials" and self.owner.username == "tom_wolcott"
+        return self.type == "tutorial"
 
+    @staticmethod
     def tutorial_view():
-        tutorial_views = [view for view in View.objects.all() if view.is_tutorial]
-
-        if len(tutorial_views) == 0:
-            return None
-        else:
-            return tutorial_views[0]
-'''
-    class Meta:
-        unique_together = ["name", "owner"]
+        return View.objects.filter(type="tutorial", deleted=False).first()
 
     def __str__(self):
         return self.name
 
     @staticmethod
     def filter_by_user(request):
-        return View.objects.filter(Q(owner=request.user) | Q(owner=None))
-
-    def populate_unsubmitted_runs(self, request):
-        executions = RemoteExecution.objects.filter(run=models.OuterRef("pk"))
-        self.runs.set(Run.filter_by_user(request).filter(~models.Exists(executions)))
+        return View.objects.filter(
+            Q(owner=request.user.username) | Q(owner=None)
+        )
 
     @staticmethod
     def create_default_views(request):
-        owner = request.user
+        owner = request.user.username
         if not View.objects.filter(owner=owner, type="unsubmitted").exists():
             View.objects.create(
                 type="unsubmitted", name="Unsubmitted", owner=owner, order=20
             )
         if not View.objects.filter(owner=owner, type="default").exists():
             View.objects.create(type="default", name="Selected", owner=owner, order=10)
-'''
 
-class Run(models.Model):
-    name = models.CharField(max_length=100)
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True,
-        related_name="epolyscat_run"
-    )
 
-    description = models.CharField(max_length=4000, blank=True)
-    airavata_project_id = models.CharField(max_length=255, null=True)
-    directory = models.CharField(max_length=300, blank=True)
+class RunExtras(models.Model):
+    """App-side pointer row for a run stored server-side as an Airavata
+    experiment. ``experiment_id`` is the Airavata experiment id and doubles
+    as the run's public id."""
+
+    experiment_id = models.CharField(max_length=255, unique=True)
     views = models.ManyToManyField(View, related_name="runs", blank=True)
-
-    number = models.CharField(max_length=64, blank=True, default="")
-    root = models.ForeignKey(RunsRoot, on_delete=models.CASCADE, related_name="runs", null=True, blank=True)
-    experiment = models.ForeignKey(
-        Experiment, on_delete=models.CASCADE, related_name="runs", null=True, blank=True
-    )
-    filepath = models.CharField(max_length=255, blank=True, default="")
-    inpc_data_product_uri = models.CharField(max_length=64, null=True, default=None)
-
+    deleted = models.BooleanField(default=False)
+    # JSON list of Airavata experiment ids that were actually launched for
+    # this run: the run's own experiment once submitted, then one cloned
+    # experiment per resubmission (most recent last).
+    execution_ids_json = models.TextField(default="[]")
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    deleted = models.BooleanField(default=False)
-
-    is_email_notification_on = models.BooleanField(default=False)
-
-    # Computing resource info
-    group_resource_profile_id = models.CharField(max_length=255, null=True)
-    compute_resource_id = models.CharField(max_length=255, null=True)
-    queue_name = models.CharField(max_length=64, null=True)
-    core_count = models.IntegerField(null=True)
-    node_count = models.IntegerField(null=True)
-    walltime_limit = models.IntegerField(null=True)
-    total_physical_memory = models.IntegerField(null=True)  # in megabytes
-    input_table = models.TextField(null=True)
-
-#    class Meta:
-#        #name = models.CharField(max_length=100)
-#        #owner = models.ForeignKey(
-#        #  settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True,
-#        #  related_name="epolyscat_run"
-#        #)
-#        unique_together = ["name", "owner"]
-#        #unique_together = ["number", "root"]
-#        #ordering = ["root__root", "number"]
-    
-
-    #@property
-    #def owner(self):
-    #    return self.experiment.owner
-#
-#    @property
-#    def name(self):
-#        return f"{self.root.root}/{self.number}"
-
-    @property
-    def is_tutorial(self):
-        return Run.check_is_tutorial(self.id)
-
-    def tutorial_view():
-        tutorial_views = [view for view in View.objects.all() if view.is_tutorial]
-
-        if len(tutorial_views) == 0:
-            return None
-        else:
-            return tutorial_views[0]
-
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-
-        if self.id and not self.directory:
-            self.directory = f"EPOLYSCAT_Runs/Run_{self.id}"
-            super().save(update_fields=["directory"])
-
-    def are_all_executions_finished(self, request):
-        for execution in self.executions.all():
-            if not execution.is_airavata_experiment_finished(request):
-                return False
-        return True
-
-
-    @property
-    def latest_execution(self):
-        try:
-            return self.executions.latest("created")
-        except RemoteExecution.DoesNotExist:
-            return None
 
     @staticmethod
-    def filter_by_user(request):
-        "Filter by experiment owner or the experiment's Airavata project is shared with user"
-        # For now commenting out the Airavata project sharing logic
-        # user_projects = request.airavata_client.getUserProjects(
-        #     request.authz_token, settings.GATEWAY_ID, request.user.username, -1, 0
-        # )
-        # project_ids = list(map(lambda p: p.projectID, user_projects))
-        # Returns Runs where user is Experiment owner or Experiment is shared via project
-        return Run.objects.filter(
-            Q(owner=request.user)
-            # Tutorial runs have no owner
-            | Q(owner=None)
-            # | models.Q(experiment__airavata_project_id__in=project_ids)
+    def for_experiment(experiment_id):
+        extras, _created = RunExtras.objects.get_or_create(
+            experiment_id=experiment_id
         )
-     
-
-    @staticmethod
-    def check_is_tutorial(run_id):
-        try:
-            tutorials_view = View.objects.get(type="tutorial", owner=None)
-            return tutorials_view.runs.filter(pk=run_id).exists()
-        except View.DoesNotExist:
-            return False
-
-    def get_most_recent_job_id(self, request):
-        job_id = None
-        for execution in self.executions.order_by("-created"):
-            job_id = execution.get_job_id(request)
-            if job_id is not None:
-                break
-        return job_id
-
-    def are_all_executions_finished(self, request):
-        for execution in self.executions.all():
-            if not execution.is_airavata_experiment_finished(request):
-                return False
-        return True
+        return extras
 
     @property
-    def is_cancelable(self, request):
-        latest_execution: RemoteExecution = self.latest_execution
-        return latest_execution is not None and latest_execution.is_cancelable(request)
+    def execution_ids(self):
+        try:
+            return json.loads(self.execution_ids_json)
+        except ValueError:
+            logger.warning(
+                "Invalid execution_ids_json for %s", self.experiment_id
+            )
+            return []
+
+    @execution_ids.setter
+    def execution_ids(self, ids):
+        self.execution_ids_json = json.dumps(list(ids))
+
+    def add_execution(self, experiment_id):
+        ids = self.execution_ids
+        if experiment_id not in ids:
+            ids.append(experiment_id)
+            self.execution_ids = ids
+            self.save()
 
     def __str__(self):
-        return self.number
+        return self.experiment_id
 
 
-class Input(models.Model):
-    run = models.ForeignKey(Run, related_name='inputs', on_delete=models.CASCADE)
-    type = models.CharField(max_length=20, null=True)
-    name = models.CharField(max_length=240)
-    value = models.CharField(max_length=240, null=True)
+class ProjectExtras(models.Model):
+    """Marks an Airavata project as an ePolyScat run-grouping "experiment"
+    (the project itself — name, description, owner — lives server-side)."""
 
-    class Meta:
-        unique_together = ("run", "type", "name")
-
-class File(models.Model):
-    name = models.CharField(max_length=200)
-    data_product_uri = models.CharField(max_length=100)
-    input = models.ForeignKey(Input, related_name='files', on_delete=models.CASCADE)
-
-
-class RemoteExecution(models.Model):
-    run = models.ForeignKey(Run, on_delete=models.CASCADE, related_name="executions")
-    airavata_experiment_id = models.CharField(max_length=255, unique=True, null=True)
+    project_id = models.CharField(max_length=255, unique=True)
+    deleted = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    airavata_experiment_status = models.CharField(
-        max_length=255,
-        default=airavata_gateway.experiment_created_state_name,
-    )
-    resource_name = models.CharField(max_length=255, blank=True, default="")
-    job_id = models.CharField(max_length=255, null=True)
 
-    def get_job_id(self, request):
-        if self.job_id is None and self.airavata_experiment_id is not None:
-            jobs = airavata_gateway.get_job_details(
-                request, self.airavata_experiment_id
-            )
-            if len(jobs) > 0:
-                self.job_id = airavata_gateway.job_id(jobs[0])
-                self.save()
-        return self.job_id
-
-    def get_airavata_experiment_status(self, request):
-        terminal_states = self.get_airavata_experiment_terminal_states()
-        old_state = airavata_gateway.experiment_state_value(
-            self.airavata_experiment_status
-        )
-        if old_state in terminal_states:
-            return self.airavata_experiment_status
-        else:
-            logger.debug(f"getExperimentStatus({self.airavata_experiment_id})")
-            current_status = airavata_gateway.get_experiment_status(
-                request, self.airavata_experiment_id
-            )
-            self.airavata_experiment_status = airavata_gateway.experiment_state_name(
-                current_status.state
-            )
-            self.save()
-            return self.airavata_experiment_status
-
-    def is_airavata_experiment_finished(self, request):
-        status = self.get_airavata_experiment_status(request)
-        state = airavata_gateway.experiment_state_value(status)
-        return state in self.get_airavata_experiment_terminal_states()
-
-    def get_application_specific_status(self, request) -> Union[str, None]:
-        output_name = "ePolyScat_Standard-Out"
-        experiment_model = airavata_gateway.get_experiment(
-            request, self.airavata_experiment_id
-        )
-        stdout_dp = None
-        if (
-            airavata_gateway.experiment_statuses(experiment_model)[-1].state
-            == airavata_gateway.experiment_completed_state()
-        ):
-            for output in airavata_gateway.experiment_outputs(experiment_model):
-                if (
-                    output.name == output_name
-                    and output.value
-                    and output.value.startswith("airavata-dp://")
-                ):
-                    stdout_dp = airavata_gateway.get_data_product(request, output.value)
-        else:
-            can_fetch = airavata_gateway.can_fetch_intermediate_output(
-                request, experiment_model, output_name
-            )
-            if can_fetch:
-                airavata_gateway.fetch_intermediate_output(
-                    request,
-                    self.airavata_experiment_id,
-                    output_name,
-                )
-            data_products = airavata_gateway.get_intermediate_output_data_products(
-                request, experiment_model, output_name
-            )
-            if len(data_products) == 1:
-                stdout_dp = data_products[0]
-
-        if stdout_dp is not None:
-            with user_storage.open_file(
-                request,
-                data_product_uri=airavata_gateway.data_product_uri(stdout_dp),
-            ) as f:
-                stdout = list(map(bytes.decode, f.readlines()))
-
-                ident = re.compile(r"^ ===  done")
-                items = list(filter(ident.match, stdout))
-                if items or stdout[-1].find(" *** further output on") != -1:
-                    return "* - Completed"
-
-                ident = re.compile(r"^ ===  TIME PROPAGATION")
-                items = list(filter(ident.match, stdout))
-                if items:
-                    return "Time propagating"
-
-                ident = re.compile(r"^ ===  OUTPUT")
-                items = list(filter(ident.match, stdout))
-                if items:
-                    return "Started"
-
-        return None
-
-    def get_airavata_experiment_terminal_states(self):
-        return airavata_gateway.experiment_terminal_states()
-
-    def get_airavata_experiment_cancelable_states(self):
-        return airavata_gateway.experiment_cancelable_states()
-
-    @property
-    def resource_name_short(self):
-        return self.resource_name.split(".")[0]
-
-    def cancel(self, request):
-        airavata_gateway.terminate_experiment(request, self.airavata_experiment_id)
-
-    def is_cancelable(self, request) -> bool:
-        status = self.get_airavata_experiment_status(request)
-        state = airavata_gateway.experiment_state_value(status)
-        return state in self.get_airavata_experiment_cancelable_states()
+    def __str__(self):
+        return self.project_id
 
 
 class PlotParameters(models.Model):
@@ -438,16 +142,15 @@ class PlotParameters(models.Model):
     yaxes = models.CharField(max_length=20, default="")
     flags = models.CharField(max_length=200, default="")
     last_use = models.DateTimeField(auto_now=True)
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="epolyscat_plotparameters"
+    owner = models.CharField(
+        # Keycloak username; the portal has no Django User model.
+        max_length=255, null=True
     )
     created = models.DateTimeField(auto_now_add=True)
 
     @staticmethod
     def filter_by_user(request):
-        return PlotParameters.objects.filter(owner=request.user)
+        return PlotParameters.objects.filter(owner=request.user.username)
 
     def __str__(self) -> str:
         return f"x={self.xaxis} y={self.yaxes} {self.flags}"
